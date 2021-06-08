@@ -1918,7 +1918,7 @@ class DcnmIntf:
             e1 = ie1
             e2 = ie2
         else:
-            if (isinstance(ie1, unicode)):  # noqa
+            if (isinstance(ie1, unicode)):
                 e1 = ie1.encode('utf-8')
             else:
                 e1 = ie1
