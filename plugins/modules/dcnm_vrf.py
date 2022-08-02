@@ -417,18 +417,23 @@ class DcnmVrf:
                             want_e = ast.literal_eval(want_ext_values['VRF_LITE_CONN'])
                             have_e = ast.literal_eval(have_ext_values['VRF_LITE_CONN'])
 
-                            if want_e['VRF_LITE_CONN'][0]['IF_NAME'] == have_e['VRF_LITE_CONN'][0]['IF_NAME']:
-                                if want_e['VRF_LITE_CONN'][0]['DOT1Q_ID'] == have_e['VRF_LITE_CONN'][0]['DOT1Q_ID']:
-                                    if want_e['VRF_LITE_CONN'][0]['IP_MASK'] == have_e['VRF_LITE_CONN'][0]['IP_MASK']:
-                                        if want_e['VRF_LITE_CONN'][0]['NEIGHBOR_IP'] == \
-                                                    have_e['VRF_LITE_CONN'][0]['NEIGHBOR_IP']:
-                                            if want_e['VRF_LITE_CONN'][0]['IPV6_MASK'] == \
-                                                        have_e['VRF_LITE_CONN'][0]['IPV6_MASK']:
-                                                if want_e['VRF_LITE_CONN'][0]['IPV6_NEIGHBOR'] == \
-                                                            have_e['VRF_LITE_CONN'][0]['IPV6_NEIGHBOR']:
-                                                    if want_e['VRF_LITE_CONN'][0]['PEER_VRF_NAME'] == \
-                                                                have_e['VRF_LITE_CONN'][0]['PEER_VRF_NAME']:
-                                                        found = True
+                            if (
+                                want_e['VRF_LITE_CONN'][0]['IF_NAME']
+                                == have_e['VRF_LITE_CONN'][0]['IF_NAME']
+                                and want_e['VRF_LITE_CONN'][0]['DOT1Q_ID']
+                                == have_e['VRF_LITE_CONN'][0]['DOT1Q_ID']
+                                and want_e['VRF_LITE_CONN'][0]['IP_MASK']
+                                == have_e['VRF_LITE_CONN'][0]['IP_MASK']
+                                and want_e['VRF_LITE_CONN'][0]['NEIGHBOR_IP']
+                                == have_e['VRF_LITE_CONN'][0]['NEIGHBOR_IP']
+                                and want_e['VRF_LITE_CONN'][0]['IPV6_MASK']
+                                == have_e['VRF_LITE_CONN'][0]['IPV6_MASK']
+                                and want_e['VRF_LITE_CONN'][0]['IPV6_NEIGHBOR']
+                                == have_e['VRF_LITE_CONN'][0]['IPV6_NEIGHBOR']
+                                and want_e['VRF_LITE_CONN'][0]['PEER_VRF_NAME']
+                                == have_e['VRF_LITE_CONN'][0]['PEER_VRF_NAME']
+                            ):
+                                found = True
 
                         elif want['extensionValues'] != "" or have['extensionValues'] != "":
                             found = False
@@ -437,19 +442,19 @@ class DcnmVrf:
 
                             # When the attachment is to be detached and undeployed, ignore any changes
                             # to the attach section in the want(i.e in the playbook).
-                            if want.get('isAttached') is not None:
-                                if bool(have['isAttached']) is not bool(want['isAttached']):
-                                    del want['isAttached']
-                                    attach_list.append(want)
-                                    continue
+                            if want.get('isAttached') is not None and bool(
+                                have['isAttached']
+                            ) is not bool(want['isAttached']):
+                                del want['isAttached']
+                                attach_list.append(want)
+                                continue
 
                             if bool(have['deployment']) is not bool(want['deployment']):
                                 dep_vrf = True
 
-            if not found:
-                if bool(want['deployment']):
-                    del want['isAttached']
-                    attach_list.append(want)
+            if not found and bool(want['deployment']):
+                del want['isAttached']
+                attach_list.append(want)
 
         return attach_list, dep_vrf
 
@@ -466,14 +471,17 @@ class DcnmVrf:
                 self.serial = ser
 
         if not serial:
-            self.module.fail_json(msg='Fabric: {} does not have the switch: {}'
-                                  .format(self.fabric, attach['ip_address']))
+            self.module.fail_json(
+                msg=f"Fabric: {self.fabric} does not have the switch: {attach['ip_address']}"
+            )
+
 
         role = self.inventory_data[attach['ip_address']].get('switchRole')
         self.role = role
 
-        if role.lower() == 'spine' or role.lower() == 'super spine':
-            msg = 'VRFs cannot be attached to switch {} with role {}'.format(attach['ip_address'], role)
+        if role.lower() in ['spine', 'super spine']:
+            msg = f"VRFs cannot be attached to switch {attach['ip_address']} with role {role}"
+
             self.module.fail_json(msg=msg)
 
         ext_values = {}
@@ -481,19 +489,17 @@ class DcnmVrf:
             '''Before apply the vrf_lite config, need double check if the swtich role is started wth Border'''
             r = re.search(r'\bborder\b', role.lower())
             if not r:
-                msg = 'VRF LITE cannot be attached to switch {} with role {}'.format(attach['ip_address'], role)
+                msg = f"VRF LITE cannot be attached to switch {attach['ip_address']} with role {role}"
+
                 self.module.fail_json(msg=msg)
 
             at_lite = attach['vrf_lite']
             for a_l in at_lite:
                 if a_l['interface'] and a_l['dot1q'] and a_l['ipv4_addr'] and a_l['neighbor_ipv4'] and a_l['ipv6_addr'] \
-                    and a_l['neighbor_ipv6'] and a_l['peer_vrf']:
+                        and a_l['neighbor_ipv6'] and a_l['peer_vrf']:
 
                     ''' if all the elements are provided by the user in the playbook fill the extension values'''
-                    vrflite_con = {}
-                    vrflite_con['VRF_LITE_CONN'] = []
-                    vrflite_con['VRF_LITE_CONN'].append({})
-
+                    vrflite_con = {'VRF_LITE_CONN': [{}]}
                     vrflite_con['VRF_LITE_CONN'][0]['IF_NAME'] = a_l['interface']
                     vrflite_con['VRF_LITE_CONN'][0]['DOT1Q_ID'] = str(a_l['dot1q'])
                     vrflite_con['VRF_LITE_CONN'][0]['IP_MASK'] = a_l['ipv4_addr']
@@ -506,8 +512,7 @@ class DcnmVrf:
                     vrflite_con['VRF_LITE_CONN'][0]['VRF_LITE_JYTHON_TEMPLATE'] = 'Ext_VRF_Lite_Jython'
                     ext_values['VRF_LITE_CONN'] = json.dumps(vrflite_con)
 
-                    ms_con = {}
-                    ms_con['MULTISITE_CONN'] = []
+                    ms_con = {'MULTISITE_CONN': []}
                     ext_values['MULTISITE_CONN'] = json.dumps(ms_con)
 
                     self.vrflitevalues = ext_values
@@ -549,37 +554,34 @@ class DcnmVrf:
         if vlanId_want != "0":
 
             if want['vrfId'] is not None and have['vrfId'] != want['vrfId']:
-                self.module.fail_json(msg="vrf_id for vrf:{} cant be updated to a different value".format(want['vrfName']))
+                self.module.fail_json(
+                    msg=f"vrf_id for vrf:{want['vrfName']} cant be updated to a different value"
+                )
+
             elif have['serviceVrfTemplate'] != want['serviceVrfTemplate'] or \
-                    have['vrfTemplate'] != want['vrfTemplate'] or \
-                    have['vrfExtensionTemplate'] != want['vrfExtensionTemplate'] or \
-                    vlanId_have != vlanId_want:
+                        have['vrfTemplate'] != want['vrfTemplate'] or \
+                        have['vrfExtensionTemplate'] != want['vrfExtensionTemplate'] or \
+                        vlanId_have != vlanId_want:
 
                 if want['vrfId'] is None:
                     # The vrf updates with missing vrfId will have to use existing
                     # vrfId from the instance of the same vrf on DCNM.
                     want['vrfId'] = have['vrfId']
                 create = want
-            else:
-                pass
+        elif want['vrfId'] is not None and have['vrfId'] != want['vrfId']:
+            self.module.fail_json(
+                msg=f"vrf_id for vrf:{want['vrfName']} cant be updated to a different value"
+            )
 
-        else:
-
-            if want['vrfId'] is not None and have['vrfId'] != want['vrfId']:
-                self.module.fail_json(
-                    msg="vrf_id for vrf:{} cant be updated to a different value".format(want['vrfName']))
-            elif have['serviceVrfTemplate'] != want['serviceVrfTemplate'] or \
+        elif have['serviceVrfTemplate'] != want['serviceVrfTemplate'] or \
                     have['vrfTemplate'] != want['vrfTemplate'] or \
                     have['vrfExtensionTemplate'] != want['vrfExtensionTemplate']:
 
-                if want['vrfId'] is None:
-                    # The vrf updates with missing vrfId will have to use existing
-                    # vrfId from the instance of the same vrf on DCNM.
-                    want['vrfId'] = have['vrfId']
-                create = want
-            else:
-                pass
-
+            if want['vrfId'] is None:
+                # The vrf updates with missing vrfId will have to use existing
+                # vrfId from the instance of the same vrf on DCNM.
+                want['vrfId'] = have['vrfId']
+            create = want
         return create
 
     def update_create_params(self, vrf, vlanId=''):
@@ -606,7 +608,7 @@ class DcnmVrf:
             'vrfName': vrf['vrf_name'],
             'vlanId': vlanId
         }
-        vrf_upd.update({'vrfTemplateConfig': json.dumps(template_conf)})
+        vrf_upd['vrfTemplateConfig'] = json.dumps(template_conf)
 
         return vrf_upd
 

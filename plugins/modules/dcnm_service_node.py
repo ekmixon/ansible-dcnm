@@ -298,77 +298,78 @@ class DcnmServiceNode:
         state = self.params['state']
 
         if state == 'query':
-            snode_upd = {
-                "name": snode['name']
-            }
+            return {"name": snode['name']}
+
+        serial = []
+        for sw in snode['switches']:
+            sw = dcnm_get_ip_addr_info(self.module, sw, None, None)
+            serial.extend(ser for ip, ser in self.ip_sn.items() if ip == sw)
+        if not serial:
+            self.module.fail_json(
+                msg=f"Fabric: {self.fabric} does not have the switch: {snode['switches']}"
+            )
+
+
+        switchsn = ""
+        if len(snode['switches']) == 2:
+            switchsn = f"{str(serial[0])},{str(serial[1])}"
+            if 'vPC' not in snode['attach_interface']:
+                self.module.fail_json(
+                    msg=f'Fabric: {self.fabric} - if two switches are provided, vpc is only interface option'
+                )
+
+        elif len(snode['switches']) == 1:
+            switchsn = str(serial[0])
+            if 'vPC' in snode['attach_interface']:
+                self.module.fail_json(
+                    msg=f'Fabric: {self.fabric} - For 1 switch, vpc is not the interface option'
+                )
+
         else:
+            self.module.fail_json(
+                msg=f'Fabric: {self.fabric} - Upto 2 switches only allowed'
+            )
 
-            serial = []
-            for sw in snode['switches']:
-                sw = dcnm_get_ip_addr_info(self.module, sw, None, None)
-                for ip, ser in self.ip_sn.items():
-                    if ip == sw:
-                        serial.append(ser)
 
-            if not serial:
-                self.module.fail_json(msg='Fabric: {} does not have the switch: {}'
-                                      .format(self.fabric, snode['switches']))
+        if snode['type'] == 'firewall':
+            s_type = snode['type'].title()
+        elif snode['type'] == 'load_balancer':
+            s_type = 'ADC'
+        elif snode['type'] == 'virtual_network_function':
+            s_type = 'VNF'
 
-            switchsn = ""
-            if len(snode['switches']) == 2:
-                switchsn = str(serial[0]) + "," + str(serial[1])
-                if 'vPC' not in snode['attach_interface']:
-                    self.module.fail_json(msg='Fabric: {} - if two switches are provided, vpc is only interface option'
-                                          .format(self.fabric))
-            elif len(snode['switches']) == 1:
-                switchsn = str(serial[0])
-                if 'vPC' in snode['attach_interface']:
-                    self.module.fail_json(msg='Fabric: {} - For 1 switch, vpc is not the interface option'
-                                          .format(self.fabric))
-            else:
-                self.module.fail_json(msg='Fabric: {} - Upto 2 switches only allowed'
-                                      .format(self.fabric))
-
-            if snode['type'] == 'firewall':
-                s_type = snode['type'].title()
-            elif snode['type'] == 'load_balancer':
-                s_type = 'ADC'
-            elif snode['type'] == 'virtual_network_function':
-                s_type = 'VNF'
-
-            snode_upd = {
-                "name": snode['name'],
-                "type": s_type,
-                "formFactor": snode['form_factor'].title(),
-                "fabricName": self.service_fabric,
-                "interfaceName": snode['svc_int_name'],
-                "attachedSwitchSn": switchsn,
-                "attachedSwitchInterfaceName": snode['attach_interface'],
-                "linkTemplateName": "service_link_trunk",
-                "nvPairs": {
-                    "MTU": "jumbo",
-                    "SPEED": "Auto",
-                    "ALLOWED_VLANS": "none",
-                    "BPDUGUARD_ENABLED": "no",
-                    "PORTTYPE_FAST_ENABLED": "true",
-                    "ADMIN_STATE": "true"
-                },
-                "attachedFabricName": self.fabric
-            }
-
-        return snode_upd
+        return {
+            "name": snode['name'],
+            "type": s_type,
+            "formFactor": snode['form_factor'].title(),
+            "fabricName": self.service_fabric,
+            "interfaceName": snode['svc_int_name'],
+            "attachedSwitchSn": switchsn,
+            "attachedSwitchInterfaceName": snode['attach_interface'],
+            "linkTemplateName": "service_link_trunk",
+            "nvPairs": {
+                "MTU": "jumbo",
+                "SPEED": "Auto",
+                "ALLOWED_VLANS": "none",
+                "BPDUGUARD_ENABLED": "no",
+                "PORTTYPE_FAST_ENABLED": "true",
+                "ADMIN_STATE": "true",
+            },
+            "attachedFabricName": self.fabric,
+        }
 
     def get_have(self):
 
         method = 'GET'
-        path = '/appcenter/Cisco/elasticservice/elasticservice-api/?attached-fabric={}'.format(self.fabric)
+        path = f'/appcenter/Cisco/elasticservice/elasticservice-api/?attached-fabric={self.fabric}'
+
 
         snode_objects = dcnm_send(self.module, method, path)
         missing_fabric, not_ok = self.handle_response(snode_objects, 'query_dcnm')
 
         if missing_fabric or not_ok:
-            msg1 = "Fabric {} not present on DCNM".format(self.fabric)
-            msg2 = "Unable to Service Node under fabric: {}".format(self.fabric)
+            msg1 = f"Fabric {self.fabric} not present on DCNM"
+            msg2 = f"Unable to Service Node under fabric: {self.fabric}"
 
             self.module.fail_json(msg=msg1 if missing_fabric else msg2)
             return
@@ -378,29 +379,29 @@ class DcnmServiceNode:
 
         have_switch = []
         for snode in snode_objects['DATA']:
-            get_snode = {}
-            get_snode.update({'name': snode['name']})
-            get_snode.update({'formFactor': snode['formFactor']})
-            get_snode.update({'interfaceName': snode['interfaceName']})
-            get_snode.update({'type': snode['type']})
-            get_snode.update({'attachedFabricName': snode['attachedFabricName']})
-            get_snode.update({'attachedSwitchInterfaceName': snode['attachedSwitchInterfaceName']})
-            get_snode.update({'attachedSwitchSn': snode['attachedSwitchSn']})
-            get_snode.update({'fabricName': snode['fabricName']})
+            get_snode = {
+                'name': snode['name'],
+                'formFactor': snode['formFactor'],
+                'interfaceName': snode['interfaceName'],
+                'type': snode['type'],
+                'attachedFabricName': snode['attachedFabricName'],
+                'attachedSwitchInterfaceName': snode[
+                    'attachedSwitchInterfaceName'
+                ],
+                'attachedSwitchSn': snode['attachedSwitchSn'],
+                'fabricName': snode['fabricName'],
+            }
+
             have_switch.append(get_snode)
 
         self.have_create = have_switch
 
     def get_want(self):
 
-        want_create = []
-
         if not self.config:
             return
 
-        for snode in self.validated:
-            want_create.append(self.update_create_params(snode))
-
+        want_create = [self.update_create_params(snode) for snode in self.validated]
         self.want_create = want_create
 
     def get_diff_delete(self):
@@ -409,15 +410,14 @@ class DcnmServiceNode:
 
         if self.config:
             for want_c in self.want_create:
-                for have_c in self.have_create:
-                    if (have_c['name'] == want_c['name']):
-                        diff_delete.append(have_c['name'])
-                        continue
+                diff_delete.extend(
+                    have_c['name']
+                    for have_c in self.have_create
+                    if (have_c['name'] == want_c['name'])
+                )
 
         else:
-            for have_c in self.have_create:
-                diff_delete.append(have_c['name'])
-
+            diff_delete.extend(have_c['name'] for have_c in self.have_create)
         self.diff_delete = diff_delete
 
     def get_diff_override(self):
@@ -455,15 +455,18 @@ class DcnmServiceNode:
         diff_delete = []
 
         for have_c in self.have_create:
-            match_found = False
-            for want_c in self.want_create:
-                if want_c['name'] == have_c['name']:
-                    if want_c['type'] == have_c['type'] and want_c['attachedFabricName'] == have_c['attachedFabricName'] \
-                            and want_c['fabricName'] == have_c['fabricName'] and \
-                            want_c['attachedSwitchInterfaceName'] == have_c['attachedSwitchInterfaceName'] and \
-                            want_c['attachedSwitchSn'] == have_c['attachedSwitchSn'] and \
-                            want_c['interfaceName'] == have_c['interfaceName']:
-                        match_found = True
+            match_found = any(
+                want_c['name'] == have_c['name']
+                and want_c['type'] == have_c['type']
+                and want_c['attachedFabricName'] == have_c['attachedFabricName']
+                and want_c['fabricName'] == have_c['fabricName']
+                and want_c['attachedSwitchInterfaceName']
+                == have_c['attachedSwitchInterfaceName']
+                and want_c['attachedSwitchSn'] == have_c['attachedSwitchSn']
+                and want_c['interfaceName'] == have_c['interfaceName']
+                for want_c in self.want_create
+            )
+
             if match_found:
                 continue
             else:
@@ -476,16 +479,19 @@ class DcnmServiceNode:
         diff_create = []
 
         for want_c in self.want_create:
-            found = False
-            for have_c in self.have_create:
-                if want_c['name'] == have_c['name'] and want_c['type'] == have_c['type'] and \
-                        want_c['attachedFabricName'] == have_c['attachedFabricName'] and want_c['fabricName'] == have_c[
-                    'fabricName'] and \
-                        want_c['attachedSwitchInterfaceName'] == have_c['attachedSwitchInterfaceName'] and \
-                        want_c['attachedSwitchSn'] == have_c['attachedSwitchSn'] and \
-                        want_c['interfaceName'] == have_c['interfaceName'] and \
-                        want_c['formFactor'] == have_c['formFactor']:
-                    found = True
+            found = any(
+                want_c['name'] == have_c['name']
+                and want_c['type'] == have_c['type']
+                and want_c['attachedFabricName'] == have_c['attachedFabricName']
+                and want_c['fabricName'] == have_c['fabricName']
+                and want_c['attachedSwitchInterfaceName']
+                == have_c['attachedSwitchInterfaceName']
+                and want_c['attachedSwitchSn'] == have_c['attachedSwitchSn']
+                and want_c['interfaceName'] == have_c['interfaceName']
+                and want_c['formFactor'] == have_c['formFactor']
+                for have_c in self.have_create
+            )
+
             if not found:
                 diff_create.append(want_c)
 
@@ -495,15 +501,16 @@ class DcnmServiceNode:
 
         query = []
         method = 'GET'
-        path = '/appcenter/Cisco/elasticservice/elasticservice-api/?attached-fabric={}'.format(self.fabric)
+        path = f'/appcenter/Cisco/elasticservice/elasticservice-api/?attached-fabric={self.fabric}'
+
 
         snode_objects = dcnm_send(self.module, method, path)
 
         missing_fabric, not_ok = self.handle_response(snode_objects, 'query_dcnm')
 
         if missing_fabric or not_ok:
-            msg1 = "Fabric {} not present on DCNM".format(self.fabric)
-            msg2 = "Unable to find Service Node under fabric: {}".format(self.fabric)
+            msg1 = f"Fabric {self.fabric} not present on DCNM"
+            msg2 = f"Unable to find Service Node under fabric: {self.fabric}"
 
             self.module.fail_json(msg=msg1 if missing_fabric else msg2)
             return
@@ -513,14 +520,14 @@ class DcnmServiceNode:
 
         if self.config:
             for want_c in self.want_create:
-                for snode in snode_objects['DATA']:
-                    if want_c['name'] == snode['name']:
-                        query.append(snode)
-                        continue
-        else:
-            for snode in snode_objects['DATA']:
-                query.append(snode)
+                query.extend(
+                    snode
+                    for snode in snode_objects['DATA']
+                    if want_c['name'] == snode['name']
+                )
 
+        else:
+            query.extend(iter(snode_objects['DATA']))
         self.query = query
 
     def push_to_remote(self, is_rollback=False):
@@ -528,8 +535,8 @@ class DcnmServiceNode:
         method = 'DELETE'
         if self.diff_delete:
             for name in self.diff_delete:
-                delete_path = '/appcenter/Cisco/elasticservice/elasticservice-api/fabrics/{}/service-nodes/{}'.format(
-                    self.service_fabric, name)
+                delete_path = f'/appcenter/Cisco/elasticservice/elasticservice-api/fabrics/{self.service_fabric}/service-nodes/{name}'
+
                 resp = dcnm_send(self.module, method, delete_path)
 
                 self.result['response'].append(resp)
@@ -544,8 +551,8 @@ class DcnmServiceNode:
         method = 'POST'
         if self.diff_create:
             for create in self.diff_create:
-                deploy_path = '/appcenter/Cisco/elasticservice/elasticservice-api/fabrics/{}/service-nodes'.format(
-                    self.service_fabric)
+                deploy_path = f'/appcenter/Cisco/elasticservice/elasticservice-api/fabrics/{self.service_fabric}/service-nodes'
+
                 resp = dcnm_send(self.module, method, deploy_path, json.dumps(create))
                 self.result['response'].append(resp)
                 fail, self.result['changed'] = self.handle_response(resp, "create")
@@ -559,8 +566,8 @@ class DcnmServiceNode:
         method = 'PUT'
         if self.diff_replace:
             for replace in self.diff_replace:
-                replace_path = '/appcenter/Cisco/elasticservice/elasticservice-api/fabrics/{}/service-nodes/{}'.format(
-                    self.service_fabric, replace['name'])
+                replace_path = f"/appcenter/Cisco/elasticservice/elasticservice-api/fabrics/{self.service_fabric}/service-nodes/{replace['name']}"
+
                 resp = dcnm_send(self.module, method, replace_path, json.dumps(replace))
 
                 self.result['response'].append(resp)
@@ -609,8 +616,8 @@ class DcnmServiceNode:
                 attach_interface=dict(required=True, type='str'),
             )
 
+            msg = None
             if self.config:
-                msg = None
                 # Validate service node params
                 valid_snode, invalid_params = validate_list_of_dicts(self.config, snode_spec)
                 for snode in valid_snode:
@@ -622,11 +629,8 @@ class DcnmServiceNode:
 
             else:
                 state = self.params['state']
-                msg = None
-
-                if state == 'merged' or state == 'overridden' or \
-                        state == 'replaced':
-                    msg = "config: element is mandatory for this state {}".format(state)
+                if state in ['merged', 'overridden', 'replaced']:
+                    msg = f"config: element is mandatory for this state {state}"
 
             if msg:
                 self.module.fail_json(msg=msg)
@@ -707,7 +711,10 @@ def main():
     dcnm_snode = DcnmServiceNode(module)
 
     if not dcnm_snode.ip_sn:
-        module.fail_json(msg="Fabric {} missing on DCNM or does not have any switches".format(dcnm_snode.fabric))
+        module.fail_json(
+            msg=f"Fabric {dcnm_snode.fabric} missing on DCNM or does not have any switches"
+        )
+
 
     dcnm_snode.validate_input()
 

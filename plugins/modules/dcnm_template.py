@@ -218,7 +218,7 @@ class DcnmTemplate:
             self.config, template_spec
         )
         if invalid_params:
-            mesg = "Invalid parameters in playbook: {}".format(invalid_params)
+            mesg = f"Invalid parameters in playbook: {invalid_params}"
             self.module.fail_json(msg=mesg)
 
         self.template_info.extend(template_info)
@@ -247,20 +247,15 @@ class DcnmTemplate:
             else:
                 std_cont = "##template properties\nname = __TEMPLATE_NAME;\ndescription = __DESCRIPTION;\ntags = __TAGS;\nuserDefined = true;\nsupportedPlatforms = All;\ntemplateType = POLICY;\ntemplateSubType = DEVICE;\ncontentType = TEMPLATE_CLI;\nimplements = implements;\ndependencies = ;\npublished = false;\n"
 
-            template_payload = {}
-
             std_cont = std_cont.replace("__TEMPLATE_NAME", ditem["name"])
             std_cont = std_cont.replace("__DESCRIPTION", ditem["description"])
             std_cont = std_cont.replace("__TAGS", ditem["tags"])
 
             final_cont = std_cont + ditem["content"] + "##"
 
-            template_payload["template_name"] = ditem["name"]
-            template_payload["content"] = final_cont
+            template_payload = {"template_name": ditem["name"], "content": final_cont}
         elif self.module.params["state"] == "deleted":
-            template_payload = {"name": [], "fabTemplate": []}
-            template_payload["name"] = ditem["name"]
-
+            template_payload = {"fabTemplate": [], "name": ditem["name"]}
         return template_payload
 
     def dcnm_template_compare_template(self, template):
@@ -273,18 +268,11 @@ class DcnmTemplate:
             update_content = False
             if template["template_name"] == have["name"]:
 
-                # First the content in want must be updated based on what is given
-                # and what is already existing. For 'merge', properties that are not
-                # specified should be left as is and those which are different from
-                # have must be updated.
-
-                match_pb = [
+                if match_pb := [
                     t
                     for t in self.pb_input
                     if template["template_name"] == t["name"]
-                ][0]
-
-                if match_pb:
+                ][0]:
                     if match_pb.get("description", None) is None:
                         # Description is not included in config. So take it from have
                         desc = have["description"]
@@ -299,7 +287,7 @@ class DcnmTemplate:
                     else:
                         tags = match_pb["tags"]
 
-                    if update_content is True:
+                    if update_content:
                         template["content"] = self.dcnm_template_build_content(
                             match_pb["content"],
                             template["template_name"],
@@ -317,11 +305,7 @@ class DcnmTemplate:
                 w = re.sub(" +", "", template["content"])
                 h = re.sub(" +", "", have["content"]).rstrip("\n")
 
-                if w != h:
-                    return "DCNM_TEMPLATE_MERGE"
-                else:
-                    return "DCNM_TEMPLATE_DONT_ADD"
-
+                return "DCNM_TEMPLATE_MERGE" if w != h else "DCNM_TEMPLATE_DONT_ADD"
         return "DCNM_TEMPLATE_ADD_NEW"
 
     def dcnm_template_validate_template(self, template):
@@ -332,33 +316,32 @@ class DcnmTemplate:
             self.module, "POST", path, template["content"], "text"
         )
 
-        if resp and resp["RETURN_CODE"] == 200 and resp["MESSAGE"] == "OK":
-            # DATA may have multiple dicts with different reports. Check all reports and ignore warnings.
-            # If there are errors, take it as validation failure
+        if not resp or resp["RETURN_CODE"] != 200 or resp["MESSAGE"] != "OK":
+            return 0
+        # DATA may have multiple dicts with different reports. Check all reports and ignore warnings.
+        # If there are errors, take it as validation failure
 
-            # resp['DATA'] may be a list in case of templates with no parameters. But for templates
-            # with parameters resp['DATA'] will be a dict directly with 'status' as 'Template Validation Successful'
-            if isinstance(resp['DATA'], list):
-                for d in resp["DATA"]:
-                    if d.get("reportItemType", ' ').lower() == "error":
-                        self.result["response"].append(resp)
-                        return 0
-                return resp["RETURN_CODE"]
-            elif isinstance(resp['DATA'], dict):
-                if resp['DATA'].get("status",  ' ').lower() != "template validation successful":
+        # resp['DATA'] may be a list in case of templates with no parameters. But for templates
+        # with parameters resp['DATA'] will be a dict directly with 'status' as 'Template Validation Successful'
+        if isinstance(resp['DATA'], list):
+            for d in resp["DATA"]:
+                if d.get("reportItemType", ' ').lower() == "error":
                     self.result["response"].append(resp)
                     return 0
-                return resp["RETURN_CODE"]
-            else:
+            return resp["RETURN_CODE"]
+        elif isinstance(resp['DATA'], dict):
+            if resp['DATA'].get("status",  ' ').lower() != "template validation successful":
                 self.result["response"].append(resp)
                 return 0
+            return resp["RETURN_CODE"]
         else:
+            self.result["response"].append(resp)
             return 0
 
     def dcnm_template_get_policy_list(self, snos, tlist):
 
         policies = {}
-        path = "/rest/control/policies/switches?serialNumber=" + snos
+        path = f"/rest/control/policies/switches?serialNumber={snos}"
 
         resp = dcnm_send(self.module, "GET", path)
 
@@ -372,13 +355,10 @@ class DcnmTemplate:
                 if p["templateName"] in tlist:
                     if policies.get(p["templateName"], None) is None:
                         policies[p["templateName"]] = {}
-                    policies[p["templateName"]][p["policyId"]] = {}
-                    policies[p["templateName"]][p["policyId"]][
-                        "fabricName"
-                    ] = p["fabricName"]
-                    policies[p["templateName"]][p["policyId"]][
-                        "serialNumber"
-                    ] = p["serialNumber"]
+                    policies[p["templateName"]][p["policyId"]] = {
+                        "fabricName": p["fabricName"],
+                        "serialNumber": p["serialNumber"],
+                    }
 
         return policies
 
@@ -421,14 +401,11 @@ class DcnmTemplate:
             .replace("]", "")
         )
         tstr = tstr.replace(" ", "")
-        template_list = tstr.split(",")
-
-        return template_list
+        return tstr.split(",")
 
     def dcnm_template_create_template(self, template):
 
-        payload = {}
-        payload["content"] = template["content"]
+        payload = {"content": template["content"]}
         path = "/rest/config/templates/template"
 
         json_payload = json.dumps(payload)
@@ -466,12 +443,7 @@ class DcnmTemplate:
 
             # Make sure to mark changed to False if none of the templates are deleted
 
-            if len(del_payload["fabTemplate"]) == len(tlist):
-                # Since the number of templates in tlist is same as the number of templates to be deleted, it means
-                # no template has been deleted. Hence we can mark changed to False
-                self.result["changed"] = False
-            else:
-                self.result["changed"] = True
+            self.result["changed"] = len(del_payload["fabTemplate"]) != len(tlist)
         else:
             self.module.fail_json(msg=resp)
 
@@ -499,12 +471,10 @@ class DcnmTemplate:
             elif self.module.params["state"] == "deleted":
                 name = template["name"]
 
-            path = "/rest/config/templates/" + name
-            template_payload = self.dcnm_template_get_template_info_from_dcnm(
+            path = f"/rest/config/templates/{name}"
+            if template_payload := self.dcnm_template_get_template_info_from_dcnm(
                 path, name
-            )
-
-            if template_payload:
+            ):
                 self.have.append(template_payload)
 
     def dcnm_template_get_want(self):
@@ -545,12 +515,9 @@ class DcnmTemplate:
 
         for template in self.want:
 
-            # Check if the template is present. If not ignore the request
-            match_temp = [
+            if match_temp := [
                 t for t in self.have if template["name"] == t["name"]
-            ]
-
-            if match_temp:
+            ]:
                 del_payload["fabTemplate"].append(template["name"])
                 self.changed_dict[0]["deleted"].append(template["name"])
         if del_payload["fabTemplate"]:
@@ -566,19 +533,16 @@ class DcnmTemplate:
         for template in self.template_info:
 
             path = "/rest/config/templates/" + template["name"]
-            template_payload = self.dcnm_template_get_template_info_from_dcnm(
+            if template_payload := self.dcnm_template_get_template_info_from_dcnm(
                 path, template["name"]
-            )
-
-            if template_payload:
+            ):
                 self.diff_query.append(template_payload)
                 self.changed_dict[0]["query"].append(template_payload["name"])
                 self.result["response"].append(template_payload)
                 tlist.append(template["name"])
 
         if tlist:
-            policies = self.dcnm_template_get_policies(tlist)
-            if policies:
+            if policies := self.dcnm_template_get_policies(tlist):
                 self.result["template-policy-map"] = policies
 
     def dcnm_template_send_message_to_dcnm(self):
@@ -612,8 +576,7 @@ class DcnmTemplate:
         std_cont = std_cont.replace("__DESCRIPTION", desc)
         std_cont = std_cont.replace("__TAGS", tags)
 
-        final_cont = std_cont + content + "##"
-        return final_cont
+        return std_cont + content + "##"
 
     # Flatten the incoming config database and have the required fileds updated.
     # This modified config DB will be used while creating payloads. To avoid

@@ -659,9 +659,8 @@ class TestDcnmTemplateModule(TestDcnmModule):
 
         self.assertEqual(len(result['diff'][0]['failed']), 1)
 
-        errored = False
-        for d in result['response'][0]['DATA']:
-            if (d['reportItemType'] == 'ERROR'):
-                errored = True
+        errored = any(
+            (d['reportItemType'] == 'ERROR') for d in result['response'][0]['DATA']
+        )
 
         self.assertEqual(errored, True)

@@ -27,8 +27,7 @@ display = Display()
 class ActionModule(ActionNetworkModule):
     def run(self, tmp=None, task_vars=None):
 
-        if self._task.args.get('state') == 'merged' or self._task.args.get('state') == 'overridden' \
-            or self._task.args.get('state') == 'replaced':
+        if self._task.args.get('state') in ['merged', 'overridden', 'replaced']:
             for con in self._task.args['config']:
                 if 'attach' in con:
                     for at in con['attach']:

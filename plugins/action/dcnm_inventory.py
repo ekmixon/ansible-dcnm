@@ -35,28 +35,27 @@ class ActionModule(ActionNetworkModule):
 
         if (persistent_command_timeout < timeout or persistent_connect_timeout < timeout):
             display.warning(
-                "PERSISTENT_COMMAND_TIMEOUT is %s"
-                % str(persistent_command_timeout),
+                f"PERSISTENT_COMMAND_TIMEOUT is {str(persistent_command_timeout)}",
                 self._play_context.remote_addr,
             )
+
             display.warning(
-                "PERSISTENT_CONNECT_TIMEOUT is %s"
-                % str(persistent_connect_timeout),
+                f"PERSISTENT_CONNECT_TIMEOUT is {str(persistent_connect_timeout)}",
                 self._play_context.remote_addr,
             )
+
             msg = (
                 "PERSISTENT_COMMAND_TIMEOUT and PERSISTENT_CONNECT_TIMEOUT"
+                + f" must be set to {timeout} seconds or higher when using dcnm_inventory module."
             )
-            msg += " must be set to {} seconds or higher when using dcnm_inventory module.".format(timeout)
-            msg += " Current persistent_command_timeout setting:" + str(
-                persistent_command_timeout
-            )
-            msg += " Current persistent_connect_timeout setting:" + str(
-                persistent_connect_timeout
-            )
+
+            msg += f" Current persistent_command_timeout setting:{str(persistent_command_timeout)}"
+
+            msg += f" Current persistent_connect_timeout setting:{str(persistent_connect_timeout)}"
+
             return {"failed": True, "msg": msg}
 
-        if self._task.args.get('state') == 'merged' or self._task.args.get('state') == 'overridden':
+        if self._task.args.get('state') in ['merged', 'overridden']:
             display.warning("Adding switches to a VXLAN fabric can take a while.  Please be patient...")
         self.result = super(ActionModule, self).run(task_vars=task_vars)
         return self.result

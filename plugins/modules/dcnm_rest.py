@@ -73,10 +73,7 @@ def main():
         json_data=dict(type='raw', required=False, default=None))
 
     # seed the result dict
-    result = dict(
-        changed=False,
-        response=dict()
-    )
+    result = dict(changed=False, response={})
 
     module = AnsibleModule(
         argument_spec=argument_spec,

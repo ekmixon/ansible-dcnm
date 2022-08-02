@@ -210,9 +210,6 @@ class TestDcnmServiceNodeModule(TestDcnmModule):
             self.init_data()
             self.run_dcnm_send.side_effect = [self.mock_sn_have_success]
 
-        else:
-            pass
-
     def test_dcnm_sn_blank_fabric(self):
         set_module_args(dict(state='merged',
                              fabric='test_fabric',

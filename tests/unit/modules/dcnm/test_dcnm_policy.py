@@ -61,9 +61,9 @@ class TestDcnmPolicyModule(TestDcnmModule):
 
 #################################### FIXTURES ############################
 
-    def load_policy_fixtures (self):
+    def load_policy_fixtures(self):
 
-        if ('test_dcnm_policy_merged_new' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merged_new':
 
             create_succ_resp1  = self.payloads_data.get('success_create_response_101')
             create_succ_resp2  = self.payloads_data.get('success_create_response_102')
@@ -79,7 +79,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp5,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merged_same_template' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merged_same_template':
 
             have_101_105_resp  = self.payloads_data.get('have_response_101_105')
             create_succ_resp1  = self.payloads_data.get('success_create_response_101')
@@ -91,14 +91,14 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp1,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merged_new_check_mode' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merged_new_check_mode':
 
             have_all_resp      = self.payloads_data.get('policy_have_all_resp')
 
             self.run_dcnm_send.side_effect = [have_all_resp]
 
 
-        if ('test_dcnm_policy_merged_existing' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merged_existing':
 
             create_succ_resp1  = self.payloads_data.get('success_create_response_101')
             create_succ_resp2  = self.payloads_data.get('success_create_response_102')
@@ -111,7 +111,10 @@ class TestDcnmPolicyModule(TestDcnmModule):
             self.run_dcnm_send.side_effect = [have_101_105_resp,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merged_existing_and_non_exist' == self._testMethodName):
+        if (
+            self._testMethodName
+            == 'test_dcnm_policy_merged_existing_and_non_exist'
+        ):
 
             create_succ_resp4  = self.payloads_data.get('success_create_response_104')
             create_succ_resp5  = self.payloads_data.get('success_create_response_105')
@@ -122,7 +125,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp4, create_succ_resp5,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_without_state' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_without_state':
 
             create_succ_resp4  = self.payloads_data.get('success_create_response_104')
             create_succ_resp5  = self.payloads_data.get('success_create_response_105')
@@ -132,7 +135,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp4, create_succ_resp5,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merge_additional_policies' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merge_additional_policies':
 
             create_succ_resp4   = self.payloads_data.get('success_create_response_104')
             create_succ_resp4_1 = self.payloads_data.get('success_create_response_104_1')
@@ -142,7 +145,10 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp4, create_succ_resp4_1,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merge_additional_policies_exist' == self._testMethodName):
+        if (
+            self._testMethodName
+            == 'test_dcnm_policy_merge_additional_policies_exist'
+        ):
 
             have_resp_104       = self.payloads_data.get('have_response_104')
             create_succ_resp4   = self.payloads_data.get('success_create_response_104')
@@ -153,7 +159,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp4, create_succ_resp4_1,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merge_multiple_switches' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merge_multiple_switches':
 
             create_succ_resp12  = self.payloads_data.get('success_create_response_101_sw2')
             create_succ_resp13  = self.payloads_data.get('success_create_response_101_sw3')
@@ -172,13 +178,13 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp4, create_succ_resp5, 
                                               deploy_succ_resp_multi_sw]
 
-        if ('test_dcnm_policy_merge_deploy_false' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merge_deploy_false':
 
             create_succ_resp4   = self.payloads_data.get('success_create_response_104')
 
             self.run_dcnm_send.side_effect = [[], create_succ_resp4]
 
-        if ('test_dcnm_policy_merge_no_deploy' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merge_no_deploy':
 
             create_succ_resp1  = self.payloads_data.get('success_create_response_101')
             create_succ_resp2  = self.payloads_data.get('success_create_response_102')
@@ -194,7 +200,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp5,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_merged_new_with_vars' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_merged_new_with_vars':
 
             create_succ_resp1  = self.payloads_data.get('success_create_response_125')
             create_succ_resp2  = self.payloads_data.get('success_create_response_126')
@@ -207,7 +213,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp3, 
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_modify_with_template_name' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_modify_with_template_name':
 
             deploy_succ_resp   = self.payloads_data.get('success_deploy_response_104')
             have_all_resp      = self.payloads_data.get('have_response_101_105')
@@ -217,7 +223,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp1, 
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_modify_with_policy_id' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_modify_with_policy_id':
 
             create_succ_resp4  = self.payloads_data.get('success_create_response_104')
             deploy_succ_resp   = self.payloads_data.get('success_deploy_response_104')
@@ -228,7 +234,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp4,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_modify_policy_with_vars' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_modify_policy_with_vars':
 
             create_succ_resp1  = self.payloads_data.get('success_create_response_125')
             deploy_succ_resp   = self.payloads_data.get('success_deploy_response_125')
@@ -239,7 +245,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               create_succ_resp1,
                                               deploy_succ_resp]
 
-        if ('test_dcnm_policy_delete_with_template_name' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_delete_with_template_name':
 
             have_resp_101_105      = self.payloads_data.get('have_response_101_105')
             mark_delete_resp_101   = self.payloads_data.get('mark_delete_response_101')
@@ -256,7 +262,7 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               [], [], [], [], [],
                                               ]
 
-        if ('test_dcnm_policy_delete_with_policy_id' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_delete_with_policy_id':
 
             get_response_101      = self.payloads_data.get('get_response_101')
             get_response_102      = self.payloads_data.get('get_response_102')
@@ -280,7 +286,10 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               mark_delete_resp_105, delete_config_save_resp, 
                                               [], [], [], [], [],
                                               ]
-        if ('test_dcnm_policy_delete_multiple_policies_with_template_name' == self._testMethodName):
+        if (
+            self._testMethodName
+            == 'test_dcnm_policy_delete_multiple_policies_with_template_name'
+        ):
 
             have_resp_101_105_multi = self.payloads_data.get('have_response_101_105_multi')
             mark_delete_resp_101    = self.payloads_data.get('mark_delete_response_101')
@@ -300,7 +309,10 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               ]
 
 
-        if ('test_dcnm_policy_delete_with_template_name_with_second_delete' == self._testMethodName):
+        if (
+            self._testMethodName
+            == 'test_dcnm_policy_delete_with_template_name_with_second_delete'
+        ):
 
             have_resp_101_105     = self.payloads_data.get('have_response_101_105')
             get_response_101      = self.payloads_data.get('get_response_101')
@@ -332,13 +344,13 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               delete_config_save_resp
                                               ]
 
-        if ('test_dcnm_policy_query_with_switch_info' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_query_with_switch_info':
 
             have_resp_101_105   = self.payloads_data.get('have_response_101_105')
 
             self.run_dcnm_send.side_effect = [have_resp_101_105,
                                              ]
-        if ('test_dcnm_policy_query_with_policy_id' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_query_with_policy_id':
 
             get_resp_101     = self.payloads_data.get('get_response_101')
             get_resp_102     = self.payloads_data.get('get_response_102')
@@ -350,13 +362,16 @@ class TestDcnmPolicyModule(TestDcnmModule):
                                               get_resp_102, get_resp_103, get_resp_104,
                                               get_resp_105
                                              ]
-        if ('test_dcnm_policy_query_with_template_name' == self._testMethodName):
+        if self._testMethodName == 'test_dcnm_policy_query_with_template_name':
 
             have_resp_101_105   = self.payloads_data.get('have_response_101_105')
 
             self.run_dcnm_send.side_effect = [have_resp_101_105,
                                              ]
-        if ('test_dcnm_policy_query_with_template_name_match_multi' == self._testMethodName):
+        if (
+            self._testMethodName
+            == 'test_dcnm_policy_query_with_template_name_match_multi'
+        ):
 
             have_resp_101_105_multi   = self.payloads_data.get('have_response_101_105_multi')
 

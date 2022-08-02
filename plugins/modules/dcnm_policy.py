@@ -418,15 +418,13 @@ class DcnmPolicy:
 
         for cfg in self.config:
 
-            clist = []
-            clist.append(cfg)
+            clist = [cfg]
             policy_info, invalid_params = validate_list_of_dicts(
                 clist, policy_spec
             )
             if invalid_params:
-                mesg = 'Invalid parameters in playbook: while processing policy "{}", Error: {}'.format(
-                    cfg["name"], invalid_params
-                )
+                mesg = f'Invalid parameters in playbook: while processing policy "{cfg["name"]}", Error: {invalid_params}'
+
                 self.module.fail_json(msg=mesg)
             self.policy_info.extend(policy_info)
 
@@ -434,23 +432,17 @@ class DcnmPolicy:
 
         policy_payload = {
             "source": "",
-            "serialNumber": "",
             "entityType": "SWITCH",
             "entityName": "SWITCH",
-            "templateName": "",
-            "priority": "",
             "nvPairs": {},
+            "serialNumber": self.ip_sn[sw],
+            "templateName": pelem["name"],
+            "description": pelem["description"],
+            "priority": pelem["priority"],
+            "create_additional_policy": pelem["create_additional_policy"],
+            "policy_id_given": False,
         }
 
-        policy_payload["serialNumber"] = self.ip_sn[sw]
-        policy_payload["templateName"] = pelem["name"]
-        policy_payload["description"] = pelem["description"]
-        policy_payload["priority"] = pelem["priority"]
-        policy_payload["create_additional_policy"] = pelem[
-            "create_additional_policy"
-        ]
-
-        policy_payload["policy_id_given"] = False
 
         if pelem.get("policy_vars", None) is not None:
             # Given policy has arguments. Add these to the payload
@@ -461,36 +453,26 @@ class DcnmPolicy:
 
     def dcnm_get_policy_payload_with_policy_id(self, pelem, sw):
 
-        policy_payload = {
-            "id": "",
-            "source": "",
-            "serialNumber": "",
-            "policyId": "",
-            "entityType": "SWITCH",
-            "entityName": "SWITCH",
-            "templateName": "",
-            "priority": "",
-            "description": "",
-            "nvPairs": {},
-        }
-
         # Get the existing policy and get the templateName, id etc.
         policy = self.dcnm_policy_get_policy_info_from_dcnm(pelem["name"])
 
         if policy == []:
             return policy
 
-        policy_payload["id"] = policy["id"]
-        policy_payload["serialNumber"] = self.ip_sn[sw]
-        policy_payload["policyId"] = policy["policyId"]
-        policy_payload["templateName"] = policy["templateName"]
-        policy_payload["priority"] = pelem["priority"]
-        policy_payload["create_additional_policy"] = pelem[
-            "create_additional_policy"
-        ]
-        policy_payload["nvPairs"] = policy["nvPairs"]
-
-        policy_payload["policy_id_given"] = True
+        policy_payload = {
+            "source": "",
+            "entityType": "SWITCH",
+            "entityName": "SWITCH",
+            "description": "",
+            "id": policy["id"],
+            "serialNumber": self.ip_sn[sw],
+            "policyId": policy["policyId"],
+            "templateName": policy["templateName"],
+            "priority": pelem["priority"],
+            "create_additional_policy": pelem["create_additional_policy"],
+            "nvPairs": policy["nvPairs"],
+            "policy_id_given": True,
+        }
 
         if pelem.get("policy_vars", None) is not None:
             # Given policy has arguments. Add these to the payload
@@ -527,7 +509,7 @@ class DcnmPolicy:
 
     def dcnm_policy_get_policy_info_from_dcnm(self, policy_id):
 
-        path = "/rest/control/policies/" + policy_id
+        path = f"/rest/control/policies/{policy_id}"
 
         resp = dcnm_send(self.module, "GET", path)
 
@@ -543,7 +525,7 @@ class DcnmPolicy:
 
     def dcnm_policy_get_all_policies(self, snos):
 
-        path = "/rest/control/policies/switches?serialNumber=" + snos
+        path = f"/rest/control/policies/switches?serialNumber={snos}"
 
         # Append ',' separated snos ro the path and get all policies. Then filter the list based on the
         # given template name
@@ -566,7 +548,7 @@ class DcnmPolicy:
         for pol in want:
             if pol["serialNumber"] not in snos:
                 if snos != "":
-                    snos = snos + ","
+                    snos = f"{snos},"
                 snos = snos + pol["serialNumber"]
         return snos
 
@@ -624,30 +606,28 @@ class DcnmPolicy:
         # For modify cases, we need to match the exact policy and so we should compare
         # policyIds. For create cases use templateName key.
 
-        if policy.get("policyId", None) is not None:
-            key = "policyId"
-        else:
-            key = "templateName"
-
+        key = "templateName" if policy.get("policyId", None) is None else "policyId"
         for have in self.have:
             if (have[key] == policy[key]) and (
                 have.get("serialNumber", None) == policy["serialNumber"]
             ):
                 found = True
                 # Have a policy with matching template name. Check for other objects
-                if have.get("description", None) == policy["description"]:
-                    if have.get("priority", None) == policy["priority"]:
-                        if (
-                            self.dcnm_policy_compare_nvpairs(
-                                policy.get("nvPairs", None),
-                                have.get("nvPairs", None),
-                            )
-                            == "DCNM_POLICY_MATCH"
-                        ):
-                            return (
-                                "DCNM_POLICY_DONT_ADD",
-                                have["policyId"],
-                            )
+                if (
+                    have.get("description", None) == policy["description"]
+                    and have.get("priority", None) == policy["priority"]
+                    and (
+                        self.dcnm_policy_compare_nvpairs(
+                            policy.get("nvPairs", None),
+                            have.get("nvPairs", None),
+                        )
+                        == "DCNM_POLICY_MATCH"
+                    )
+                ):
+                    return (
+                        "DCNM_POLICY_DONT_ADD",
+                        have["policyId"],
+                    )
         if found is True:
             # Found a matching policy with the given template name, but other objects don't match.
             # Go ahead and merge the objects into the existing policy
@@ -689,17 +669,16 @@ class DcnmPolicy:
                 # This is because there can be multiple policies with the same templateName and hence we
                 # will not know which policy the user is referring to. In the case where a user is providing
                 # a templateName and we are here, ignore the policy.
-                if policy.get("policyId", None) is not None:
-                    if policy not in self.diff_modify:
-                        self.changed_dict[0]["merged"].append(policy)
-                        self.diff_modify.append(policy)
-                else:
+                if policy.get("policyId", None) is None:
                     # User has provided a template name and a policy with such a template already exists. Since
                     # the user has provided a template name, we assume he is trying to create additional policies
                     # with the same template and hence create the policy
                     if policy not in self.diff_create:
                         self.changed_dict[0]["merged"].append(policy)
                         self.diff_create.append(policy)
+                elif policy not in self.diff_modify:
+                    self.changed_dict[0]["merged"].append(policy)
+                    self.diff_modify.append(policy)
             elif rc == "DCNM_POLICY_DONT_ADD":
                 # A policy exists and there is no difference between the one that exists and the one that is
                 # is requested to be creted. Check the 'create_additional_policy' flag and crete it if it is
@@ -803,7 +782,7 @@ class DcnmPolicy:
                 for sw_dict in cfg["switch"]:
                     if self.ip_sn[sw_dict["ip"]] not in snos:
                         if snos != "":
-                            snos = snos + ","
+                            snos = f"{snos},"
                         snos = snos + self.ip_sn[sw_dict["ip"]]
             elif "POLICY-" in cfg["name"]:
                 get_specific_policies = True
@@ -822,41 +801,36 @@ class DcnmPolicy:
                 # templateName is given. Note this down
                 match_templates.append(cfg["name"])
 
-        if (get_specific_policies is False) or (match_templates != []):
+        if get_specific_policies is False or match_templates != []:
 
             # Policies cannot be obtained by using template names. Policies have 'policy-id' which is the key
             # to get a policy. Since playbook includes only template names, we need to get all policies from
             # all the switches included in playbook, and then filter them out using template names.
             plist = self.dcnm_policy_get_all_policies(snos)
 
-            if match_templates != []:
-                # Filter the list of policies and keep only those that are matching. For delete case, playbook policies
-                # may either contain template names of policy names. So compare both.
-                match_pol = [
+            match_pol = (
+                [
                     pl
                     for pl in plist
                     for mt_name in match_templates
                     if (pl["templateName"] == mt_name)
                 ]
-            else:
-                match_pol = plist
+                if match_templates != []
+                else plist
+            )
 
         if match_pol:
             # match_pol contains all the policies which exist and match the given templates
             self.changed_dict[0]["query"].extend(
                 list(
-                    set(
-                        [
-                            t["templateName"]
-                            for t in match_pol
-                            if (
-                                t["templateName"]
-                                not in self.changed_dict[0]["query"]
-                            )
-                        ]
-                    )
+                    {
+                        t["templateName"]
+                        for t in match_pol
+                        if (t["templateName"] not in self.changed_dict[0]["query"])
+                    }
                 )
             )
+
             self.result["response"].extend(match_pol)
 
     def dcnm_policy_create_policy(self, policy, command):
@@ -869,19 +843,18 @@ class DcnmPolicy:
         while retries < 3:
             resp = dcnm_send(self.module, command, path, json_payload)
 
-            if (resp.get("DATA", None) is not None) and (
-                resp["DATA"].get("failureList", None) is not None
+            if (
+                resp.get("DATA", None) is None
+                or resp["DATA"].get("failureList", None) is None
             ):
-                if isinstance(resp["DATA"]["failureList"], list):
-                    fl = resp["DATA"]["failureList"][0]
-                else:
-                    fl = resp["DATA"]["failureList"]
+                break
+            if isinstance(resp["DATA"]["failureList"], list):
+                fl = resp["DATA"]["failureList"][0]
+            else:
+                fl = resp["DATA"]["failureList"]
 
-                if "is not unique" in fl["message"]:
-                    retries = retries + 1
-                    continue
-                else:
-                    break
+            if "is not unique" in fl["message"]:
+                retries += 1
             else:
                 break
         self.result["response"].append(resp)
@@ -892,16 +865,13 @@ class DcnmPolicy:
 
         if mark_del is True:
             path = "/rest/control/policies/" + policy["policyId"] + "/mark-delete"
-            json_payload = ""
             command = "PUT"
         else:
-            path = "/rest/control/policies/" + policy
-            json_payload = ""
+            path = f"/rest/control/policies/{policy}"
             command = "DELETE"
 
-        resp = dcnm_send(self.module, command, path, json_payload)
-
-        return resp
+        json_payload = ""
+        return dcnm_send(self.module, command, path, json_payload)
 
     def dcnm_policy_deploy_policy(self, policy):
 
@@ -916,7 +886,7 @@ class DcnmPolicy:
 
     def dcnm_policy_save_and_deploy(self, snos):
 
-        deploy_path = "/rest/control/fabrics/" + self.fabric + "/config-deploy/"
+        deploy_path = f"/rest/control/fabrics/{self.fabric}/config-deploy/"
 
         resp = dcnm_send(self.module, "POST", deploy_path, "")
         self.result["response"].append(resp)
@@ -970,7 +940,7 @@ class DcnmPolicy:
         # Now use 'DELETE' command to delete the policies on the DCNM server
         for ditem in delete:
             # First check if the policy to be deleted exist.
-            path = "/rest/control/policies/" + ditem
+            path = f"/rest/control/policies/{ditem}"
 
             resp = dcnm_send(self.module, "GET", path, "")
 
@@ -990,10 +960,9 @@ class DcnmPolicy:
                     and (resp.get("DATA", None) is not None)
                     and (resp["RETURN_CODE"] == 200)
                     and resp["MESSAGE"] == "OK"
-                ):
-                    if "Deleted successfully" in resp["DATA"]["message"]:
-                        delete_flag = True
-                        self.result["response"].append(resp)
+                ) and "Deleted successfully" in resp["DATA"]["message"]:
+                    delete_flag = True
+                    self.result["response"].append(resp)
 
         # Once all policies are deleted, do a save & deploy so that the deleted policies are removed from the
         # switch
@@ -1018,19 +987,24 @@ class DcnmPolicy:
                 and (resp["MESSAGE"] == "OK")
                 and (resp.get("DATA", None) is not None)
             ):
-                if resp["DATA"].get("successList", None) is not None:
-                    if "is created successfully" in resp["DATA"][
-                        "successList"
-                    ][0].get("message"):
-                        policy_id = re.findall(
-                            r"POLICY-\d+",
-                            resp["DATA"]["successList"][0].get("message"),
-                        )
-                        if (self.deploy is True) and (
-                            policy_id[0] not in self.deploy_payload
-                        ):
-                            self.deploy_payload.append(policy_id[0])
-                        create_flag = True
+                if resp["DATA"].get(
+                    "successList", None
+                ) is not None and "is created successfully" in resp["DATA"][
+                    "successList"
+                ][
+                    0
+                ].get(
+                    "message"
+                ):
+                    policy_id = re.findall(
+                        r"POLICY-\d+",
+                        resp["DATA"]["successList"][0].get("message"),
+                    )
+                    if (self.deploy is True) and (
+                        policy_id[0] not in self.deploy_payload
+                    ):
+                        self.deploy_payload.append(policy_id[0])
+                    create_flag = True
             else:
                 self.module.fail_json(msg=resp)
 
@@ -1046,11 +1020,16 @@ class DcnmPolicy:
                 and (resp["MESSAGE"] == "OK")
                 and (resp.get("DATA", None) is not None)
             ):
-                if resp["DATA"].get("successList", None) is not None:
-                    if "is created successfully" in resp["DATA"][
-                        "successList"
-                    ][0].get("message"):
-                        create_flag = True
+                if resp["DATA"].get(
+                    "successList", None
+                ) is not None and "is created successfully" in resp["DATA"][
+                    "successList"
+                ][
+                    0
+                ].get(
+                    "message"
+                ):
+                    create_flag = True
             else:
                 self.module.fail_json(msg=resp)
 
@@ -1177,24 +1156,20 @@ def main():
     if not dcnm_policy.ip_sn:
         dcnm_policy.result[
             "msg"
-        ] = "Fabric {} missing on DCNM or does not have any switches".format(
-            dcnm_policy.fabric
-        )
+        ] = f"Fabric {dcnm_policy.fabric} missing on DCNM or does not have any switches"
+
         module.fail_json(
-            msg="Fabric {} missing on DCNM or does not have any switches".format(
-                dcnm_policy.fabric
-            )
+            msg=f"Fabric {dcnm_policy.fabric} missing on DCNM or does not have any switches"
         )
+
 
     state = module.params["state"]
 
-    if not dcnm_policy.config:
-        if state == "merged" or state == "deleted" or state == "query":
-            module.fail_json(
-                msg="'config' element is mandatory for state '{}', given = '{}'".format(
-                    state, dcnm_policy.config
-                )
-            )
+    if not dcnm_policy.config and state in ["merged", "deleted", "query"]:
+        module.fail_json(
+            msg=f"'config' element is mandatory for state '{state}', given = '{dcnm_policy.config}'"
+        )
+
 
     # Convert all hostnames and domain names to IP addresses
     dcnm_policy.dcnm_translate_switch_info(

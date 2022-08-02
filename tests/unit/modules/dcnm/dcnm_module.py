@@ -33,7 +33,7 @@ fixture_path = os.path.join(os.path.dirname(__file__), 'fixtures')
 fixture_data = {}
 
 def loadPlaybookData(module_name):
-    path = os.path.join(fixture_path, "{}.json".format(module_name))
+    path = os.path.join(fixture_path, f"{module_name}.json")
 
     with open(path) as f:
         data = f.read()
@@ -79,11 +79,12 @@ class TestDcnmModule(ModuleTestCase):
         if not models:
             models = ['']
 
-        retvals = {}
-        for model in models:
-            retvals[model] = self.execute_module(failed, changed, response, sort, device=model)
-
-        return retvals
+        return {
+            model: self.execute_module(
+                failed, changed, response, sort, device=model
+            )
+            for model in models
+        }
 
     def execute_module(self, failed=False, changed=False, response=None, sort=True, device=''):
 

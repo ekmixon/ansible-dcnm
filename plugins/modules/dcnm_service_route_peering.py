@@ -1283,27 +1283,29 @@ class DcnmServiceRoutePeering:
                     in_list.remove(rt)
                     rt.update(in_net_route[0])
 
-            if item.get(net_name2, "") != "":
-                if item[net_name2]["profile"].get("static_route", "") != "":
-                    # Static Route is a list of route dicts
-                    for rt in item[net_name2]["profile"]["static_route"]:
-                        out_list.append(rt)
-                        out_net_route, invalid_params = validate_list_of_dicts(
-                            out_list, srp_static_route_spec
+            if (
+                item.get(net_name2, "") != ""
+                and item[net_name2]["profile"].get("static_route", "") != ""
+            ):
+                # Static Route is a list of route dicts
+                for rt in item[net_name2]["profile"]["static_route"]:
+                    out_list.append(rt)
+                    out_net_route, invalid_params = validate_list_of_dicts(
+                        out_list, srp_static_route_spec
+                    )
+                    if invalid_params:
+                        mesg = "Invalid parameters in playbook: {}".format(
+                            "while processing Static Route under Network/Arm - "
+                            + net_name2
+                            + ", under Route Peering - "
+                            + cfg[0]["name"]
+                            + ", "
+                            + "\n".join(invalid_params)
                         )
-                        if invalid_params:
-                            mesg = "Invalid parameters in playbook: {}".format(
-                                "while processing Static Route under Network/Arm - "
-                                + net_name2
-                                + ", under Route Peering - "
-                                + cfg[0]["name"]
-                                + ", "
-                                + "\n".join(invalid_params)
-                            )
-                            self.module.fail_json(msg=mesg)
+                        self.module.fail_json(msg=mesg)
 
-                        out_list.remove(rt)
-                        rt.update(out_net_route[0])
+                    out_list.remove(rt)
+                    rt.update(out_net_route[0])
 
     def dcnm_srp_translate_deploy_mode(self, item):
 
@@ -1326,9 +1328,8 @@ class DcnmServiceRoutePeering:
         }
 
         if item["deploy_mode"] not in trans_dict.keys():
-            mesg = "Invalid 'deploy_mode' = {}, in playbook, Expected values = {}".format(
-                item["deploy_mode"], trans_dict.keys()
-            )
+            mesg = f"""Invalid 'deploy_mode' = {item["deploy_mode"]}, in playbook, Expected values = {trans_dict.keys()}"""
+
             self.module.fail_json(msg=mesg)
 
         return trans_dict[item["deploy_mode"]]
@@ -1367,8 +1368,6 @@ class DcnmServiceRoutePeering:
             elif self.module.params["state"] == "query":
                 # config for query state is different. So validate query state differently
                 self.dcnm_srp_validate_query_state_input(cfg)
-            # For 'overridden' state, we can have full config for a peering or just service node name alone.
-            # In the formar case go down to 'else' block to validate the full config
             elif (self.module.params["state"] == "overridden") and (
                 item.get("name", None) is None
             ):
@@ -1387,15 +1386,14 @@ class DcnmServiceRoutePeering:
                 item["deploy_mode"] = self.dcnm_srp_translate_deploy_mode(item)
                 citem["deploy_mode"] = item["deploy_mode"]
 
-                if (item["deploy_mode"].lower() == "intratenantfw") or (
-                    item["deploy_mode"].lower() == "intertenantfw"
-                ):
+                if item["deploy_mode"].lower() in [
+                    "intratenantfw",
+                    "intertenantfw",
+                ]:
                     self.dcnm_srp_validate_firewall_input(
                         cfg, item["deploy_mode"].lower()
                     )
-                if (item["deploy_mode"].lower() == "onearmadc") or (
-                    item["deploy_mode"].lower() == "twoarmadc"
-                ):
+                if item["deploy_mode"].lower() in ["onearmadc", "twoarmadc"]:
                     self.dcnm_srp_validate_adc_input(cfg, item["deploy_mode"].lower())
             cfg.remove(citem)
 
@@ -1742,9 +1740,7 @@ class DcnmServiceRoutePeering:
 
         out_route_info = {"nvPairs": {}}
 
-        if (srp["deploy_mode"].lower() == "intratenantfw") or (
-            srp["deploy_mode"].lower() == "intertenantfw"
-        ):
+        if srp["deploy_mode"].lower() in ["intratenantfw", "intertenantfw"]:
             net_name1 = "inside_network"
             net_name2 = "outside_network"
         else:
@@ -1863,20 +1859,9 @@ class DcnmServiceRoutePeering:
             },
         }
 
-        out_network_defaults = {
-            "templateName": "Service_Network_Universal",
-            "nvPairs": {
-                "isLayer2Only": False,
-                "suppressArp": False,
-                "enableIR": False,
-                "trmEnabled": False,
-                "rtBothAuto": False,
-            },
-        }
-
         srp_payload = {"serviceNetworks": [], "enabled": self.attach}
 
-        if (deploy_mode == "intratenantfw") or (deploy_mode == "intertenantfw"):
+        if deploy_mode in ["intratenantfw", "intertenantfw"]:
             net_name1 = "inside_network"
             net_name2 = "outside_network"
             networkType1 = "InsideNetworkFW"
@@ -1923,6 +1908,17 @@ class DcnmServiceRoutePeering:
         ]
 
         if deploy_mode != "onearmadc":
+
+            out_network_defaults = {
+                "templateName": "Service_Network_Universal",
+                "nvPairs": {
+                    "isLayer2Only": False,
+                    "suppressArp": False,
+                    "enableIR": False,
+                    "trmEnabled": False,
+                    "rtBothAuto": False,
+                },
+            }
 
             # Outside Network
             srp_payload["serviceNetworks"].append(out_network_defaults)
@@ -1989,7 +1985,7 @@ class DcnmServiceRoutePeering:
             else:
                 srp_payload["peeringOption"] = "EBGPDynamicPeering"
             self.dcnm_srp_get_payload_route_info(srp, srp_payload)
-        elif deploy_mode == "onearmadc":
+        elif deploy_mode in ["onearmadc", "twoarmadc"]:
 
             if srp["peering_option"] == "static":
                 srp_payload["peeringOption"] = "StaticPeering"
@@ -1997,15 +1993,6 @@ class DcnmServiceRoutePeering:
                 srp_payload["peeringOption"] = "EBGPDynamicPeering"
             srp_payload["reverseNextHopIp"] = srp["rev_next_hop"]
             self.dcnm_srp_get_payload_route_info(srp, srp_payload)
-        elif deploy_mode == "twoarmadc":
-
-            if srp["peering_option"] == "static":
-                srp_payload["peeringOption"] = "StaticPeering"
-            else:
-                srp_payload["peeringOption"] = "EBGPDynamicPeering"
-            srp_payload["reverseNextHopIp"] = srp["rev_next_hop"]
-            self.dcnm_srp_get_payload_route_info(srp, srp_payload)
-
         return srp_payload
 
     def dcnm_srp_update_route_info(self, want, have, cfg):
@@ -2026,9 +2013,7 @@ class DcnmServiceRoutePeering:
             None
         """
 
-        if (want["deploymentMode"].lower() == "intratenantfw") or (
-            want["deploymentMode"].lower() == "intertenantfw"
-        ):
+        if want["deploymentMode"].lower() in ["intratenantfw", "intertenantfw"]:
             net_name1 = "inside_network"
             net_name2 = "outside_network"
         else:
@@ -2171,9 +2156,7 @@ class DcnmServiceRoutePeering:
             None
         """
 
-        if (want["deploymentMode"].lower() == "intratenantfw") or (
-            want["deploymentMode"].lower() == "intertenantfw"
-        ):
+        if want["deploymentMode"].lower() in ["intratenantfw", "intertenantfw"]:
             net_name1 = "inside_network"
             net_name2 = "outside_network"
         else:
@@ -2322,7 +2305,7 @@ class DcnmServiceRoutePeering:
                     and (srp["attachedFabricName"] == have["attachedFabricName"])
                 )
             ]
-            if match_have == []:
+            if not match_have:
                 continue
 
             # Get the SRP from self.config to check if a particular object is included or not
@@ -2336,7 +2319,7 @@ class DcnmServiceRoutePeering:
                     and (srp["attachedFabricName"] == self.module.params["fabric"])
                 )
             ]
-            if match_cfg == []:
+            if not match_cfg:
                 continue
 
             self.dcnm_srp_update_common_info(srp, match_have[0], match_cfg[0])
@@ -2396,12 +2379,11 @@ class DcnmServiceRoutePeering:
             retries += 1
             resp = dcnm_send(self.module, "GET", path)
 
-            if resp and resp["RETURN_CODE"] != 200:
-                time.sleep(10)
-                continue
-            else:
+            if not resp or resp["RETURN_CODE"] == 200:
                 break
 
+            time.sleep(10)
+            continue
         if resp and (resp["RETURN_CODE"] == 200) and resp["DATA"]:
             resp["RETRIES"] = retries
             return resp["DATA"]
@@ -2430,12 +2412,11 @@ class DcnmServiceRoutePeering:
             retries += 1
             resp = dcnm_send(self.module, "GET", path)
 
-            if resp and resp["RETURN_CODE"] != 200:
-                time.sleep(10)
-                continue
-            else:
+            if not resp or resp["RETURN_CODE"] == 200:
                 break
 
+            time.sleep(10)
+            continue
         if resp and (resp["RETURN_CODE"] == 200) and resp["DATA"]:
             resp["RETRIES"] = retries
             return resp["DATA"]
@@ -2484,17 +2465,17 @@ class DcnmServiceRoutePeering:
             retries += 1
             resp = dcnm_send(self.module, "GET", path)
 
-            if resp and resp["RETURN_CODE"] != 200:
-                # Check if the error is "ResourceNotFound". In that case we can return without
-                # retrying.
-                if resp.get("error", None) is not None:
-                    if resp["error"].get("code") == "ResourceNotFound":
-                        break
-                time.sleep(10)
-                continue
-            else:
+            if not resp or resp["RETURN_CODE"] == 200:
                 break
 
+                # Check if the error is "ResourceNotFound". In that case we can return without
+                # retrying.
+            if (
+                resp.get("error", None) is not None
+                and resp["error"].get("code") == "ResourceNotFound"
+            ):
+                break
+            time.sleep(10)
         if resp and (resp["RETURN_CODE"] == 200) and resp["DATA"]:
             resp["RETRIES"] = retries
             return resp["DATA"]
@@ -2678,10 +2659,11 @@ class DcnmServiceRoutePeering:
         if str(want["enabled"]).lower() != str(have["enabled"]).lower():
             mismatch_reasons.append("DCNM_SRP_ATT_NO_MATCH")
 
-        if mismatch_reasons == []:
-            return "DCNM_SRP_MATCH", mismatch_reasons
-        else:
-            return "DCNM_SRP_NO_MATCH", mismatch_reasons
+        return (
+            ("DCNM_SRP_NO_MATCH", mismatch_reasons)
+            if mismatch_reasons
+            else ("DCNM_SRP_MATCH", mismatch_reasons)
+        )
 
     def dcnm_srp_compare_multi_routes(self, wmr, hmr):
 
@@ -2703,10 +2685,9 @@ class DcnmServiceRoutePeering:
         fwmr = [item.replace(" ", "") for item in wmrl]
         fhmr = [item.replace(" ", "") for item in hmrl]
 
-        for rt in fwmr:
-            if rt not in fhmr:
-                return "DCNM_MR_NO_MATCH"
-        return "DCNM_MR_MATCH"
+        return next(
+            ("DCNM_MR_NO_MATCH" for rt in fwmr if rt not in fhmr), "DCNM_MR_MATCH"
+        )
 
     def dcnm_srp_compare_route_info(self, want, have):
 
@@ -2854,10 +2835,11 @@ class DcnmServiceRoutePeering:
                 if want["routes"][1]["vrfName"] != have["routes"][1]["vrfName"]:
                     mismatch_reasons.append("DCNM_SRP_EBGP_OUT_VRF_NO_MATCH")
 
-        if mismatch_reasons == []:
-            return "DCNM_SRP_MATCH", mismatch_reasons
-        else:
-            return "DCNM_SRP_NO_MATCH", mismatch_reasons
+        return (
+            ("DCNM_SRP_NO_MATCH", mismatch_reasons)
+            if mismatch_reasons
+            else ("DCNM_SRP_MATCH", mismatch_reasons)
+        )
 
     def dcnm_srp_compare_route_peerings(self, srp):
 
@@ -2897,8 +2879,8 @@ class DcnmServiceRoutePeering:
             if rc == "DCNM_SRP_MATCH":
                 rc, reasons = self.dcnm_srp_compare_route_info(srp, have)
 
-                if rc == "DCNM_SRP_MATCH":
-                    return ("DCNM_SRP_DONT_ADD", have)
+            if rc == "DCNM_SRP_MATCH":
+                return ("DCNM_SRP_DONT_ADD", have)
 
         if found is True:
             # Found a matching route peering, but some of the objects don't match.
@@ -2939,12 +2921,11 @@ class DcnmServiceRoutePeering:
             retries += 1
             resp = dcnm_send(self.module, "GET", path)
 
-            if resp and resp["RETURN_CODE"] != 200:
-                time.sleep(10)
-                continue
-            else:
+            if not resp or resp["RETURN_CODE"] == 200:
                 break
 
+            time.sleep(10)
+            continue
         if resp:
             resp["RETRIES"] = retries
             self.result["response"].append(resp)
@@ -2969,9 +2950,7 @@ class DcnmServiceRoutePeering:
                         continue
                     if attach["lanAttached"] is False:
                         attached = False
-                    if (attach["attachState"] == "NA") or (
-                        attach["attachState"] == "PENDING"
-                    ):
+                    if attach["attachState"] in ["NA", "PENDING"]:
                         deployed = False
         return (attached, deployed)
 

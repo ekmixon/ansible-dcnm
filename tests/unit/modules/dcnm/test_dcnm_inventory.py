@@ -110,8 +110,6 @@ class TestDcnmInvModule(TestDcnmModule):
         self.mock_inv_discover107_params = copy.deepcopy(self.test_data.get('mock_inv_discover107_params'))
         self.mock_inv_blank_discover_params = copy.deepcopy(self.test_data.get('mock_inv_blank_discover_params'))
 
-        pass
-
     def setUp(self):
         super(TestDcnmInvModule, self).setUp()
 
@@ -334,9 +332,6 @@ class TestDcnmInvModule(TestDcnmModule):
         elif 'already_deleted_switch' in self._testMethodName:
             self.init_data()
             self.run_dcnm_send.side_effect = [self.get_inventory_blank_success]
-
-        else:
-            pass
 
     def test_dcnm_inv_merge_switch_fabric(self):
         set_module_args(dict(state='merged',

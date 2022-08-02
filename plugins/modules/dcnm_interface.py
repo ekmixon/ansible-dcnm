@@ -1107,25 +1107,25 @@ class DcnmIntf:
     # New Interfaces
     def dcnm_intf_get_if_name(self, name, if_type):
 
-        if ('pc' == if_type):
+        if if_type == 'pc':
             port_id = re.findall(r'\d+', name)
-            return ("Port-channel" + str(port_id[0]), port_id[0])
-        if ('vpc' == if_type):
+            return f"Port-channel{str(port_id[0])}", port_id[0]
+        if if_type == 'vpc':
             port_id = re.findall(r'\d+', name)
-            return ("vPC" + str(port_id[0]), port_id[0])
-        if ('sub_int' == if_type):
+            return f"vPC{str(port_id[0])}", port_id[0]
+        if if_type == 'sub_int':
             port_id = re.findall(r'\d+\/\d+.\d+', name)
-            return ("Ethernet" + str(port_id[0]), port_id[0])
-        if ('lo' == if_type):
+            return f"Ethernet{str(port_id[0])}", port_id[0]
+        if if_type == 'lo':
             port_id = re.findall(r'\d+', name)
-            return ("Loopback" + str(port_id[0]), port_id[0])
-        if ('eth' == if_type):
+            return f"Loopback{str(port_id[0])}", port_id[0]
+        if if_type == 'eth':
             port_id = re.findall(r'\d+\/\d+', name)
-            return ("Ethernet" + str(port_id[0]), port_id[0])
+            return f"Ethernet{str(port_id[0])}", port_id[0]
 
     def dcnm_intf_get_vpc_serial_number(self, sw):
 
-        path = '/rest/interface/vpcpair_serial_number?serial_number=' + self.ip_sn[sw]
+        path = f'/rest/interface/vpcpair_serial_number?serial_number={self.ip_sn[sw]}'
         resp = dcnm_send(self.module, 'GET', path)
 
         if (resp and resp['RETURN_CODE'] == 200):
@@ -1160,18 +1160,13 @@ class DcnmIntf:
                         pol_ind_str = cfg['type'] + '_' + cfg['profile']['mode']
 
                         c[ck]['fabric'] = self.dcnm_intf_facts['fabric']
-                        if (cfg['type'] == 'vpc'):
-                            c[ck]['sno'] = self.vpc_ip_sn[sw]
-                        else:
-                            c[ck]['sno'] = self.ip_sn[sw]
+                        c[ck]['sno'] = self.vpc_ip_sn[sw] if (cfg['type'] == 'vpc') else self.ip_sn[sw]
                         ifname, port_id = self.dcnm_intf_get_if_name(c['name'], c['type'])
                         c[ck]['ifname'] = ifname
                         c[ck]['policy'] = self.pol_types[pol_ind_str]
                         self.pb_input.append(c[ck])
 
     def dcnm_intf_validate_interface_input(self, config, common_spec, prof_spec):
-
-        plist = []
 
         intf_info, invalid_params = validate_list_of_dicts(config, common_spec)
         if invalid_params:
@@ -1181,6 +1176,8 @@ class DcnmIntf:
         self.intf_info.extend(intf_info)
 
         if (prof_spec is not None):
+
+            plist = []
 
             for item in intf_info:
 
@@ -1246,13 +1243,13 @@ class DcnmIntf:
             admin_state=dict(type='bool', default=True)
         )
 
-        if ('trunk' == config[0]['profile']['mode']):
+        if config[0]['profile']['mode'] == 'trunk':
             self.dcnm_intf_validate_interface_input(config, pc_spec, pc_prof_spec_trunk)
-        if ('access' == config[0]['profile']['mode']):
+        if config[0]['profile']['mode'] == 'access':
             self.dcnm_intf_validate_interface_input(config, pc_spec, pc_prof_spec_access)
-        if ('l3' == config[0]['profile']['mode']):
+        if config[0]['profile']['mode'] == 'l3':
             self.dcnm_intf_validate_interface_input(config, pc_spec, pc_prof_spec_l3)
-        if ('monitor' == config[0]['profile']['mode']):
+        if config[0]['profile']['mode'] == 'monitor':
             self.dcnm_intf_validate_interface_input(config, pc_spec, None)
 
     def dcnm_intf_validate_virtual_port_channel_input(self, cfg):
@@ -1303,9 +1300,9 @@ class DcnmIntf:
             admin_state=dict(type='bool', default=True)
         )
 
-        if ('trunk' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'trunk':
             self.dcnm_intf_validate_interface_input(cfg, vpc_spec, vpc_prof_spec_trunk)
-        if ('access' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'access':
             self.dcnm_intf_validate_interface_input(cfg, vpc_spec, vpc_prof_spec_access)
 
     def dcnm_intf_validate_sub_interface_input(self, cfg):
@@ -1417,15 +1414,15 @@ class DcnmIntf:
             admin_state=dict(type='bool', default=True)
         )
 
-        if ('trunk' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'trunk':
             self.dcnm_intf_validate_interface_input(cfg, eth_spec, eth_prof_spec_trunk)
-        if ('access' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'access':
             self.dcnm_intf_validate_interface_input(cfg, eth_spec, eth_prof_spec_access)
-        if ('routed' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'routed':
             self.dcnm_intf_validate_interface_input(cfg, eth_spec, eth_prof_spec_routed_host)
-        if ('monitor' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'monitor':
             self.dcnm_intf_validate_interface_input(cfg, eth_spec, None)
-        if ('epl_routed' == cfg[0]['profile']['mode']):
+        if cfg[0]['profile']['mode'] == 'epl_routed':
             self.dcnm_intf_validate_interface_input(cfg, eth_spec, eth_prof_spec_epl_routed_host)
 
     def dcnm_intf_validate_delete_state_input(self, cfg):
@@ -1480,7 +1477,9 @@ class DcnmIntf:
                 # config for query state is different for all interafces. It may not have the profile
                 # construct. So validate query state differently
                 self.dcnm_intf_validate_query_state_input(cfg)
-            elif ((self.module.params['state'] == 'overridden') and not (any('profile' in key for key in item))):
+            elif self.module.params['state'] == 'overridden' and all(
+                'profile' not in key for key in item
+            ):
                 # config for overridden state is different for all interafces. It may not have the profile
                 # construct. So validate overridden state differently
                 self.dcnm_intf_validate_overridden_state_input(cfg)
@@ -1758,16 +1757,16 @@ class DcnmIntf:
         # commands to be executed on switch. This will affect the idempotence
         # check
         if (delem['profile']['mode'] == 'monitor'):
-            intf.update({"deploy": False})
+            intf["deploy"] = False
         else:
-            intf.update({"deploy": delem['deploy']})
+            intf["deploy"] = delem['deploy']
 
         # Each type of interface and mode will have a different set of params.
         # First fill in the params common to all interface types and modes
 
         # intf.update ({"interfaceType"  : self.int_types[delem['type']]})
 
-        if ('vpc' == delem['type']):
+        if delem['type'] == 'vpc':
             intf["interfaces"][0].update({"serialNumber": str(self.vpc_ip_sn[sw])})
         else:
             intf["interfaces"][0].update({"serialNumber": str(self.ip_sn[sw])})
@@ -1785,20 +1784,20 @@ class DcnmIntf:
 
         pol_ind_str = delem['type'] + '_' + delem['profile']['mode']
         # intf.update ({"policy" : self.pol_types[delem['profile']['mode']]})
-        intf.update({"policy": self.pol_types[pol_ind_str]})
-        intf.update({"interfaceType": self.int_types[delem['type']]})
+        intf["policy"] = self.pol_types[pol_ind_str]
+        intf["interfaceType"] = self.int_types[delem['type']]
 
         # Rest of the data in the dict depends on the interface type and the template
 
-        if ('pc' == delem['type']):
+        if delem['type'] == 'pc':
             self.dcnm_intf_get_pc_payload(delem, intf, 'profile')
-        if ('sub_int' == delem['type']):
+        if delem['type'] == 'sub_int':
             self.dcnm_intf_get_sub_intf_payload(delem, intf, 'profile')
-        if ('lo' == delem['type']):
+        if delem['type'] == 'lo':
             self.dcnm_intf_get_loopback_payload(delem, intf, 'profile')
-        if ('vpc' == delem['type']):
+        if delem['type'] == 'vpc':
             self.dcnm_intf_get_vpc_payload(delem, intf, 'profile')
-        if ('eth' == delem['type']):
+        if delem['type'] == 'eth':
             self.dcnm_intf_get_eth_payload(delem, intf, 'profile')
 
             # Ethernet interface payload does not have interfaceType and skipResourceCheck flags. Pop
@@ -1842,18 +1841,16 @@ class DcnmIntf:
         # For VPC interfaces the serialNumber will be a combibed one. But GET on interface cannot
         # pass this combined serial number. We will have to pass individual ones
 
-        if (ifType == 'INTERFACE_VPC'):
-            sno = serialNumber.split('~')[0]
-        else:
-            sno = serialNumber
+        sno = (
+            serialNumber.split('~')[0]
+            if (ifType == 'INTERFACE_VPC')
+            else serialNumber
+        )
 
-        path = '/rest/interface?serialNumber=' + sno + '&ifName=' + ifName
+        path = f'/rest/interface?serialNumber={sno}&ifName={ifName}'
         resp = dcnm_send(self.module, 'GET', path)
 
-        if ('DATA' in resp and resp['DATA']):
-            return resp['DATA'][0]
-        else:
-            return []
+        return resp['DATA'][0] if ('DATA' in resp and resp['DATA']) else []
 
     def dcnm_intf_get_intf_info_from_dcnm(self, intf):
 
@@ -1868,13 +1865,14 @@ class DcnmIntf:
         # Check if the serial number is a combined one which will be the case for vPC interfaces.
         # If combined, then split it up and pass one of the serial numbers and not the combined one.
 
-        if ('~' in self.ip_sn[sw]):
-            sno = self.ip_sn[sw].split('~')[0]
-        else:
-            sno = self.ip_sn[sw]
+        sno = (
+            self.ip_sn[sw].split('~')[0]
+            if ('~' in self.ip_sn[sw])
+            else self.ip_sn[sw]
+        )
 
         # GET all interfaces
-        path = '/rest/interface/detail?serialNumber=' + sno
+        path = f'/rest/interface/detail?serialNumber={sno}'
 
         resp = dcnm_send(self.module, 'GET', path)
 
@@ -1898,14 +1896,7 @@ class DcnmIntf:
 
         for elem in self.want:
             for intf in elem['interfaces']:
-                # For each interface present here, get the information that is already available
-                # in DCNM. Based on this information, we will create the required payloads to be sent
-                # to the DCNM controller based on the requested
-
-                # Fetch the information from DCNM w.r.t to the interafce that we have in self.want
-                intf_payload = self.dcnm_intf_get_intf_info_from_dcnm(intf)
-
-                if (intf_payload):
+                if intf_payload := self.dcnm_intf_get_intf_info_from_dcnm(intf):
                     self.have.append(intf_payload)
 
     def dcnm_intf_compare_elements(self, name, sno, fabric, ie1, ie2, k, state):

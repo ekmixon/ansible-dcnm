@@ -39,7 +39,8 @@ class ActionModule(ActionNetworkModule):
             if (cfg.get('switch', None) is not None):
                 for sw in cfg['switch']:
                     if (isinstance(sw, list)):
-                        msg = " !!! Switches included in playbook profiles must be individual items, but given switch element = {} is a list ".format(sw)
+                        msg = f" !!! Switches included in playbook profiles must be individual items, but given switch element = {sw} is a list "
+
                         warnings.append(msg)
                         flattened = True
                     flat_sw_list.extend(sw)
@@ -51,7 +52,8 @@ class ActionModule(ActionNetworkModule):
             for k in keys:
 
                 if (('profile' in k) and (k != 'profile')):
-                    msg = " !!! Profile name included in playbook tasks must be 'profile', but given profile name = '{}' ".format(k)
+                    msg = f" !!! Profile name included in playbook tasks must be 'profile', but given profile name = '{k}' "
+
                     warnings.append(msg)
                     pop_key = k
 
@@ -60,7 +62,6 @@ class ActionModule(ActionNetworkModule):
                 cfg.pop(pop_key)
 
         self.result = super(ActionModule, self).run(task_vars=task_vars)
-        if (warnings):
-            self.result['warnings'] = []
-            self.result['warnings'].append(warnings)
+        if warnings:
+            self.result['warnings'] = [warnings]
         return self.result

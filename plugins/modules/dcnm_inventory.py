@@ -229,7 +229,7 @@ class DcnmInventory:
 
         # with the inv parameters perform the test-reachability (discover)
         method = 'POST'
-        path = '/rest/control/fabrics/{}/inventory/test-reachability'.format(self.fabric)
+        path = f'/rest/control/fabrics/{self.fabric}/inventory/test-reachability'
         response = dcnm_send(self.module, method, path, json.dumps(inv))
         self.result['response'].append(response)
         fail, self.result['changed'] = self.handle_response(response, "create")
@@ -237,11 +237,7 @@ class DcnmInventory:
         if fail:
             self.module.fail_json(msg=response)
 
-        if ('DATA' in response):
-            return response['DATA']
-
-        else:
-            return 0
+        return response['DATA'] if ('DATA' in response) else 0
 
     def update_create_params(self, inv):
 
@@ -296,17 +292,17 @@ class DcnmInventory:
     def get_have(self):
 
         method = 'GET'
-        path = '/rest/control/fabrics/{}/inventory'.format(self.fabric)
+        path = f'/rest/control/fabrics/{self.fabric}/inventory'
         inv_objects = dcnm_send(self.module, method, path)
         missing_fabric, not_ok = self.handle_response(inv_objects, 'query_dcnm')
 
         if inv_objects.get('ERROR') == 'Not Found' and inv_objects.get('RETURN_CODE') == 404:
-            self.module.fail_json(msg="Fabric {} not present on DCNM".format(self.fabric))
+            self.module.fail_json(msg=f"Fabric {self.fabric} not present on DCNM")
             return
 
         if missing_fabric or not_ok:
-            msg1 = "Fabric {} not present on DCNM".format(self.fabric)
-            msg2 = "Unable to find inventories under fabric: {}".format(self.fabric)
+            msg1 = f"Fabric {self.fabric} not present on DCNM"
+            msg2 = f"Unable to find inventories under fabric: {self.fabric}"
             self.module.fail_json(msg=msg1 if missing_fabric else msg2)
 
         if not inv_objects['DATA']:
@@ -315,38 +311,38 @@ class DcnmInventory:
         have_switch = []
 
         for inv in inv_objects['DATA']:
-            get_switch = {}
-            get_switch.update({'sysName': inv['logicalName']})
-            get_switch.update({'serialNumber': inv['serialNumber']})
-            get_switch.update({'ipaddr': inv['ipAddress']})
-            get_switch.update({'platform': inv['nonMdsModel']})
-            get_switch.update({'version': inv['release']})
-            get_switch.update({'deviceIndex': inv['logicalName'] + '(' + inv['serialNumber'] + ')'})
-            get_switch.update({'role': inv['switchRole'].replace(" ", "")})
-            get_switch.update({'mode': inv['mode']})
-            get_switch.update({'serialNumber': inv['serialNumber']})
-            switchdict = {}
-            switchlst = []
-            switchlst.append(get_switch)
-            switchdict["switches"] = switchlst
+            get_switch = {
+                'sysName': inv['logicalName'],
+                'serialNumber': inv['serialNumber'],
+                'ipaddr': inv['ipAddress'],
+                'platform': inv['nonMdsModel'],
+                'version': inv['release'],
+                'deviceIndex': inv['logicalName']
+                + '('
+                + inv['serialNumber']
+                + ')',
+                'role': inv['switchRole'].replace(" ", ""),
+            }
+
+            get_switch['mode'] = inv['mode']
+            get_switch['serialNumber'] = inv['serialNumber']
+            switchlst = [get_switch]
+            switchdict = {"switches": switchlst}
             have_switch.append(switchdict)
 
         self.have_create = have_switch
 
     def get_want(self):
 
-        want_create = []
-
         if not self.config:
             return
 
-        for inv in self.validated:
-            want_create.append(self.update_create_params(inv))
-
-        if not want_create:
+        if want_create := [
+            self.update_create_params(inv) for inv in self.validated
+        ]:
+            self.want_create = want_create
+        else:
             return
-
-        self.want_create = want_create
 
     def get_diff_override(self):
 
@@ -377,13 +373,19 @@ class DcnmInventory:
                 if match is None:
                     continue
                 want_serial_num = match.groups()[0]
-                if have_c["switches"][0]['serialNumber'] == want_serial_num:
-                    if have_c["switches"][0]['ipaddr'] == want_c["switches"][0]['ipaddr'] and \
-                            have_c["switches"][0]['platform'] == want_c["switches"][0]['platform'] and \
-                            have_c["switches"][0]['version'] == want_c["switches"][0]['version'] and \
-                            have_c["switches"][0]['sysName'] == want_c["switches"][0]['sysName'] and \
-                            have_c["switches"][0]['role'] == want_c['role']:
-                        match_found = True
+                if (
+                    have_c["switches"][0]['serialNumber'] == want_serial_num
+                    and have_c["switches"][0]['ipaddr']
+                    == want_c["switches"][0]['ipaddr']
+                    and have_c["switches"][0]['platform']
+                    == want_c["switches"][0]['platform']
+                    and have_c["switches"][0]['version']
+                    == want_c["switches"][0]['version']
+                    and have_c["switches"][0]['sysName']
+                    == want_c["switches"][0]['sysName']
+                    and have_c["switches"][0]['role'] == want_c['role']
+                ):
+                    match_found = True
 
             return match_found
 
@@ -401,14 +403,17 @@ class DcnmInventory:
 
         if self.config:
             for want_c in self.want_create:
-                for have_c in self.have_create:
-                    if (have_c["switches"][0]['ipaddr'] == want_c['seedIP']):
-                        diff_delete.append(have_c["switches"][0]['serialNumber'])
-                        continue
+                diff_delete.extend(
+                    have_c["switches"][0]['serialNumber']
+                    for have_c in self.have_create
+                    if (have_c["switches"][0]['ipaddr'] == want_c['seedIP'])
+                )
 
         else:
-            for have_c in self.have_create:
-                diff_delete.append(have_c["switches"][0]['serialNumber'])
+            diff_delete.extend(
+                have_c["switches"][0]['serialNumber']
+                for have_c in self.have_create
+            )
 
         self.diff_delete = diff_delete
 
@@ -424,11 +429,11 @@ class DcnmInventory:
                     continue
                 serial_num = match.groups()[0]
                 if want_c["switches"][0]['ipaddr'] == have_c["switches"][0]['ipaddr'] and \
-                        serial_num == have_c["switches"][0]['serialNumber'] \
-                        and want_c["switches"][0]['platform'] == have_c["switches"][0]['platform'] and \
-                        want_c["switches"][0]['version'] == have_c["switches"][0]['version'] \
-                        and want_c["switches"][0]['sysName'] == have_c["switches"][0]['sysName'] \
-                        and want_c['role'] == have_c["switches"][0]['role']:
+                            serial_num == have_c["switches"][0]['serialNumber'] \
+                            and want_c["switches"][0]['platform'] == have_c["switches"][0]['platform'] and \
+                            want_c["switches"][0]['version'] == have_c["switches"][0]['version'] \
+                            and want_c["switches"][0]['sysName'] == have_c["switches"][0]['sysName'] \
+                            and want_c['role'] == have_c["switches"][0]['role']:
 
                     found = True
 
@@ -442,7 +447,7 @@ class DcnmInventory:
                         # Assign Role
                         self.assign_role()
 
-                        for x in range(1, 5):
+                        for _ in range(1, 5):
                             if not self.all_switches_ok():
                                 time.sleep(300)
                             else:
@@ -465,7 +470,7 @@ class DcnmInventory:
 
         state = self.params['state']
 
-        if state == 'merged' or state == 'overridden':
+        if state in ['merged', 'overridden']:
 
             inv_spec = dict(
                 seed_ip=dict(required=True, type='str'),
@@ -488,9 +493,8 @@ class DcnmInventory:
                     if 'seed_ip' not in inv or 'user_name' not in inv or 'password' not in inv:
                         msg = "seed ip/user name and password are mandatory under inventory parameters"
 
-            else:
-                if state == 'merged':
-                    msg = "config: element is mandatory for this state {}".format(state)
+            elif state == 'merged':
+                msg = f"config: element is mandatory for this state {state}"
 
             if msg:
                 self.module.fail_json(msg=msg)
@@ -549,22 +553,24 @@ class DcnmInventory:
 
     def import_switches(self):
 
-        method = 'POST'
-        path = '/rest/control/fabrics/{}'.format(self.fabric)
-        create_path = path + '/inventory/discover?gfBlockingCall=true'
+        if not self.diff_create:
+            return
+        path = f'/rest/control/fabrics/{self.fabric}'
+        create_path = f'{path}/inventory/discover?gfBlockingCall=true'
 
-        if self.diff_create:
-            for create in self.diff_create:
-                import_response = dcnm_send(self.module, method, create_path, json.dumps(create))
-                self.result['response'].append(import_response)
-                fail, self.result['changed'] = self.handle_response(import_response, "create")
-                if fail:
-                    self.failure(import_response)
+        method = 'POST'
+        for create in self.diff_create:
+            import_response = dcnm_send(self.module, method, create_path, json.dumps(create))
+            self.result['response'].append(import_response)
+            fail, self.result['changed'] = self.handle_response(import_response, "create")
+            if fail:
+                self.failure(import_response)
 
     def rediscover_switch(self, serial_num):
 
         method = 'POST'
-        redisc_path = '/rest/control/fabrics/{}/inventory/rediscover/{}'.format(self.fabric, serial_num)
+        redisc_path = f'/rest/control/fabrics/{self.fabric}/inventory/rediscover/{serial_num}'
+
         response = dcnm_send(self.module, method, redisc_path)
         self.result['response'].append(response)
         fail, self.result['changed'] = self.handle_response(response, "create")
@@ -575,13 +581,13 @@ class DcnmInventory:
 
         # Get Fabric Inventory Details
         method = 'GET'
-        inv_path = '/rest/control/fabrics/{}/inventory'.format(self.fabric)
+        inv_path = f'/rest/control/fabrics/{self.fabric}/inventory'
         get_inv = dcnm_send(self.module, method, inv_path)
         missing_fabric, not_ok = self.handle_response(get_inv, 'query_dcnm')
 
         if missing_fabric or not_ok:
-            msg1 = "Fabric {} not present on DCNM".format(self.fabric)
-            msg2 = "Unable to find inventories under fabric: {}".format(self.fabric)
+            msg1 = f"Fabric {self.fabric} not present on DCNM"
+            msg2 = f"Unable to find inventories under fabric: {self.fabric}"
             self.module.fail_json(msg=msg1 if missing_fabric else msg2)
 
         if not get_inv.get('DATA'):
@@ -595,13 +601,13 @@ class DcnmInventory:
         all_ok = True
         # Get Fabric Inventory Details
         method = 'GET'
-        inv_path = '/rest/control/fabrics/{}/inventory'.format(self.fabric)
+        inv_path = f'/rest/control/fabrics/{self.fabric}/inventory'
         get_inv = dcnm_send(self.module, method, inv_path)
         missing_fabric, not_ok = self.handle_response(get_inv, 'query_dcnm')
 
         if missing_fabric or not_ok:
-            msg1 = "Fabric {} not present on DCNM".format(self.fabric)
-            msg2 = "Unable to find inventories under fabric: {}".format(self.fabric)
+            msg1 = f"Fabric {self.fabric} not present on DCNM"
+            msg2 = f"Unable to find inventories under fabric: {self.fabric}"
             self.module.fail_json(msg=msg1 if missing_fabric else msg2)
 
         for inv in get_inv['DATA']:

@@ -67,7 +67,7 @@ class HttpApi(HttpApiBase):
             self.connection._auth = {'Dcnm-Token': self._response_to_json(response_value)['Dcnm-Token']}
 
         except Exception as e:
-            msg = 'Error on attempt to connect and authenticate with DCNM controller: {}'.format(e)
+            msg = f'Error on attempt to connect and authenticate with DCNM controller: {e}'
             raise ConnectionError(self._return_info(None, method, path, msg))
 
     def logout(self):
@@ -77,7 +77,7 @@ class HttpApi(HttpApiBase):
         try:
             response, response_data = self.connection.send(path, self.connection._auth['Dcnm-Token'], method=method, headers=self.headers, force_basic_auth=True)
         except Exception as e:
-            msg = 'Error on attempt to logout from DCNM controller: {}'.format(e)
+            msg = f'Error on attempt to logout from DCNM controller: {e}'
             raise ConnectionError(self._return_info(None, method, path, msg))
 
         self._verify_response(response, method, path, response_data)
@@ -154,11 +154,8 @@ class HttpApi(HttpApiBase):
         msg = response.msg
         if rc >= 200 and rc <= 299:
             return self._return_info(rc, method, path, msg, jrd)
-        if rc >= 400:
-            # Add future error code processing here
-            pass
-        else:
-            msg = 'Unknown RETURN_CODE: {}'.format(rc)
+        if rc < 400:
+            msg = f'Unknown RETURN_CODE: {rc}'
         raise ConnectionError(self._return_info(rc, method, path, msg, jrd))
 
     def _get_response_value(self, response_data):
@@ -169,18 +166,16 @@ class HttpApi(HttpApiBase):
         ''' Convert response_text to json format '''
         try:
             return json.loads(response_text) if response_text else {}
-        # JSONDecodeError only available on Python 3.5+
         except ValueError:
-            return 'Invalid JSON response: {}'.format(response_text)
+            return f'Invalid JSON response: {response_text}'
 
     def _return_info(self, rc, method, path, msg, json_respond_data=None):
         ''' Format success/error data and return with consistent format '''
 
-        info = {}
-        info['RETURN_CODE'] = rc
-        info['METHOD'] = method
-        info['REQUEST_PATH'] = path
-        info['MESSAGE'] = msg
-        info['DATA'] = json_respond_data
-
-        return info
+        return {
+            'RETURN_CODE': rc,
+            'METHOD': method,
+            'REQUEST_PATH': path,
+            'MESSAGE': msg,
+            'DATA': json_respond_data,
+        }

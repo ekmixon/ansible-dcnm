@@ -405,7 +405,7 @@ class DcnmNetwork:
         self.ip_sn, self.hn_sn = get_ip_sn_dict(self.inventory_data)
         self.ip_fab, self.sn_fab = get_ip_sn_fabric_dict(self.inventory_data)
         self.fabric_det = get_fabric_details(module, self.fabric)
-        self.is_ms_fabric = True if self.fabric_det.get('fabricType') == 'MFD' else False
+        self.is_ms_fabric = self.fabric_det.get('fabricType') == 'MFD'
 
         self.result = dict(
             changed=False,
@@ -490,10 +490,9 @@ class DcnmNetwork:
                             # is set to False when deployment is PENDING or OUT-OF-SYNC - ref - get_have()
                             dep_net = True
 
-            if not found:
-                if bool(want['deployment']):
-                    del want['isAttached']
-                    attach_list.append(want)
+            if not found and bool(want['deployment']):
+                del want['isAttached']
+                attach_list.append(want)
 
         return attach_list, dep_net
 
@@ -509,12 +508,15 @@ class DcnmNetwork:
                 serial = ser
 
         if not serial:
-            self.module.fail_json(msg='Fabric: {} does not have the switch: {}'
-                                  .format(self.fabric, attach['ip_address']))
+            self.module.fail_json(
+                msg=f"Fabric: {self.fabric} does not have the switch: {attach['ip_address']}"
+            )
+
 
         role = self.inventory_data[attach['ip_address']].get('switchRole')
-        if role.lower() == 'spine' or role.lower() == 'super spine':
-            msg = 'Networks cannot be attached to switch {} with role {}'.format(attach['ip_address'], role)
+        if role.lower() in ['spine', 'super spine']:
+            msg = f"Networks cannot be attached to switch {attach['ip_address']} with role {role}"
+
             self.module.fail_json(msg=msg)
 
         attach.update({'fabric': self.fabric})

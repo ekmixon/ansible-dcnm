@@ -367,9 +367,6 @@ class TestDcnmVrfModule(TestDcnmModule):
                                               self.mock_vrf_attach_object2_query, self.mock_vrf_attach_get_ext_object_merge_att1_only,
                                               self.mock_vrf_attach_get_ext_object_merge_att4_only]
 
-        else:
-            pass
-
     def test_dcnm_vrf_blank_fabric(self):
         set_module_args(dict(state='merged',
                              fabric='test_fabric', config=self.playbook_config))
